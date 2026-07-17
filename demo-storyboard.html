@@ -1,0 +1,175 @@
+<title>Biks Forge · The 2-Minute Demo, Frame by Frame</title>
+<style>
+  :root {
+    --paper:#FAF8F4; --ink:#1A1A1A; --muted:#5C5C5C; --hairline:#DEDBD4;
+    --accent:#0F766E; --accent-tint:#E7F0EE;
+    --amber:#B45309; --amber-tint:#FBEEDD;
+    --red:#A8554C; --red-tint:#F4E9E7;
+  }
+  * { box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink); margin:0;
+    font-family:"Segoe UI",-apple-system,Roboto,Helvetica,Arial,sans-serif; line-height:1.5; }
+  .page { max-width:700px; margin:0 auto; padding:40px 22px 64px; }
+
+  .masthead { display:flex; justify-content:space-between; align-items:baseline;
+    border-bottom:1px solid var(--ink); padding-bottom:10px; }
+  .wordmark { font-weight:700; font-size:18px; letter-spacing:-0.02em; }
+  .wordmark span { color:var(--accent); }
+  .meta { font-size:12px; color:var(--muted); }
+
+  h1 { font-size:27px; line-height:1.15; letter-spacing:-0.02em; margin:30px 0 8px; text-wrap:balance; }
+  .dek { font-size:15px; color:var(--muted); max-width:58ch; margin:0 0 34px; }
+
+  /* scene blocks */
+  .scene { display:flex; gap:16px; margin-bottom:6px; }
+  .clock { min-width:74px; text-align:right; }
+  .clock .t { font-size:15px; font-weight:700; color:var(--accent); font-variant-numeric:tabular-nums; }
+  .clock .d { font-size:10.5px; color:var(--muted); }
+  .rail { display:flex; flex-direction:column; align-items:center; }
+  .rail .dot { width:11px; height:11px; border-radius:50%; background:var(--accent); margin-top:5px; flex:none; }
+  .rail .line { width:2px; flex:1; background:var(--hairline); }
+  .body { flex:1; padding-bottom:34px; }
+
+  .say { font-size:14.5px; margin:0 0 10px; max-width:56ch; }
+  .say b { color:var(--accent); }
+  .say .who { font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--muted); font-weight:700; display:block; margin-bottom:2px; }
+
+  /* screen mocks */
+  .screen { background:#fff; border:1px solid var(--hairline); border-radius:10px;
+    overflow:hidden; box-shadow:0 3px 16px rgba(26,26,26,.08); max-width:430px; }
+  .screen-bar { font-size:11px; font-weight:700; padding:7px 12px; color:#fff; background:var(--accent); }
+  .screen-bar small { font-weight:400; opacity:.85; }
+  .screen .pad { padding:12px 14px; }
+
+  .rec { display:flex; align-items:center; gap:10px; font-size:13px; }
+  .rec .btn { width:30px; height:30px; border-radius:50%; background:var(--red); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:13px; flex:none; }
+  .wave { flex:1; height:22px; background:repeating-linear-gradient(90deg, var(--accent-tint) 0 3px, var(--accent) 3px 5px, var(--accent-tint) 5px 9px); border-radius:4px; opacity:.7; }
+  .quoteline { font-size:12.5px; font-style:italic; color:var(--muted); margin-top:8px; }
+
+  table.spec { width:100%; border-collapse:collapse; font-size:12px; }
+  .spec th { text-align:left; font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase;
+    color:var(--muted); padding:0 8px 5px 0; border-bottom:1px solid var(--ink); }
+  .spec td { padding:5px 8px 5px 0; border-bottom:1px solid var(--hairline); }
+  .chip { font-size:9px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
+    padding:1.5px 6px; border-radius:2px; background:var(--amber-tint); color:var(--amber); white-space:nowrap; }
+  .forgebtn { display:block; text-align:center; background:var(--accent); color:#fff; font-weight:700;
+    font-size:13px; padding:9px; border-radius:7px; margin-top:10px; }
+
+  .log { font-family:Consolas,Menlo,monospace; font-size:11.5px; line-height:1.7;
+    background:#1F1E1B; color:#E8E5DE; border-radius:8px; padding:10px 14px; max-width:430px; }
+  .log .ok { color:#7ED0C4; }
+
+  /* chat mock */
+  .chat { padding:12px; display:flex; flex-direction:column; gap:7px; font-size:12.5px; background:#FBFAF7; }
+  .b { max-width:88%; padding:7px 11px; border-radius:10px; line-height:1.45; }
+  .cust { background:var(--accent-tint); align-self:flex-end; border-top-right-radius:3px; }
+  .bot { background:#fff; border:1px solid var(--hairline); align-self:flex-start; border-top-left-radius:3px; }
+  .v { display:block; margin-top:3px; }
+  .money { outline:2px solid var(--red); outline-offset:3px; border-radius:10px; }
+  .moneytag { font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--red); margin:6px 0 0 4px; }
+
+  .punch { background:var(--accent); color:#fff; padding:16px 20px; font-size:15px;
+    font-weight:600; line-height:1.5; max-width:560px; border-radius:6px; }
+  .foot { margin-top:40px; padding-top:12px; border-top:1px solid var(--ink);
+    font-size:12px; color:var(--muted); }
+</style>
+
+<div class="page">
+
+  <div class="masthead">
+    <div class="wordmark">biks<span>.</span>ai</div>
+    <div class="meta">The 2-minute demo · frame by frame · real numbers</div>
+  </div>
+
+  <h1>This is the demo. Exactly what the judges see, second by second.</h1>
+  <p class="dek">Four scenes, 120 seconds. Every screen below is what the team builds tomorrow; every number comes from the fixtures already in the repo and must appear exactly like this.</p>
+
+  <!-- SCENE 1 -->
+  <div class="scene">
+    <div class="clock"><div class="t">0:00</div><div class="d">20 sec</div></div>
+    <div class="rail"><div class="dot"></div><div class="line"></div></div>
+    <div class="body">
+      <p class="say"><span class="who">Nura, on stage</span>"This morning I met a restaurant owner in Denpasar. Two outlets, and every morning his admin spends three hours matching the bank statement against last night's sales. Here's ten seconds of that meeting."</p>
+      <div class="screen">
+        <div class="screen-bar">meeting-16jul.m4a <small>· 1:28</small></div>
+        <div class="pad">
+          <div class="rec"><div class="btn">▶</div><div class="wave"></div><span style="font-size:11px;color:var(--muted)">0:41</span></div>
+          <div class="quoteline">"...uang masuknya macem-macem, mas. QRIS itu kepotong dikit, yang online-online potongannya gede, dua puluh persen kayaknya. Tiap hari pasti ada selisih, dan Mbak Sari harus nebak-nebak..."</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 2 -->
+  <div class="scene">
+    <div class="clock"><div class="t">0:20</div><div class="d">30 sec</div></div>
+    <div class="rail"><div class="dot"></div><div class="line"></div></div>
+    <div class="body">
+      <p class="say"><span class="who">Nura</span>"Our agents listened to that meeting and wrote his spec. Fee rates it wasn't sure about, it flagged instead of assuming silently." <b>Taps FORGE, live.</b></p>
+      <div class="screen">
+        <div class="screen-bar">Confirm · Dapoer Nusantara <small>· 2 outlets · BCA</small></div>
+        <div class="pad">
+          <table class="spec">
+            <tr><th>Channel</th><th>Fee</th><th>Settle</th><th></th></tr>
+            <tr><td>CASH</td><td>—</td><td>tidak masuk bank</td><td></td></tr>
+            <tr><td>QRIS</td><td>0,7%</td><td>H+1</td><td><span class="chip">asumsi · cek</span></td></tr>
+            <tr><td>GoFood</td><td>20%</td><td>H+2</td><td><span class="chip">asumsi · cek</span></td></tr>
+            <tr><td>GrabFood</td><td>20%</td><td>H+1</td><td><span class="chip">asumsi · cek</span></td></tr>
+            <tr><td>Transfer</td><td>0%</td><td>H+0</td><td></td></tr>
+          </table>
+          <div class="forgebtn">FORGE THIS AGENT →</div>
+        </div>
+      </div>
+      <div style="height:10px"></div>
+      <div class="log">
+        <span class="ok">✓</span> Listener &nbsp;— meeting transcribed, facts extracted<br>
+        <span class="ok">✓</span> Architect — ForgeSpec + PRD written<br>
+        <span class="ok">⟳</span> Builder &nbsp;&nbsp;— Daytona sandbox spinning... agent assembled<br>
+        <span class="ok">✓</span> Inspector — verdicts verified against fixtures<br>
+        <span class="ok">LIVE in 87s →</span> dapoer-nusantara.forge-8821.daytonaproxy01.eu
+      </div>
+    </div>
+  </div>
+
+  <!-- SCENE 3 -->
+  <div class="scene">
+    <div class="clock"><div class="t">0:50</div><div class="d">50 sec</div></div>
+    <div class="rail"><div class="dot"></div><div class="line"></div></div>
+    <div class="body">
+      <p class="say"><span class="who">Nura, phone in hand, as the owner</span>He opens the link on the projector and chats with HIS agent, which has already read yesterday's closing and this morning's mutasi:</p>
+      <div class="screen">
+        <div class="screen-bar">Nusa · Dapoer Nusantara <small>· AI reconciliation · online</small></div>
+        <div class="chat">
+          <div class="b cust">Gimana kemarin?</div>
+          <div class="b bot">Pagi, Pak Dharma. Dari omzet Rp 6.285.000 kemarin:
+            <span class="v">✅ QRIS Rp 1.430.000 → masuk Rp 1.419.990 (biaya 0,7% = Rp 10.010)</span>
+            <span class="v">✅ GrabFood Rp 840.000 → masuk Rp 672.000 (komisi 20% = Rp 168.000)</span>
+            <span class="v">✅ Transfer Rp 615.000 → masuk persis</span>
+            <span class="v">🟡 GoFood Rp 1.250.000 belum masuk — normal H+1, besok saya tunggu ±Rp 1.000.000</span>
+            <span class="v">🔴 Ada kredit Rp 50.000 "TRANSFER MASUK - NN" yang tidak cocok dengan closing manapun</span>
+            <span class="v">ℹ️ Cash Rp 2.150.000 pegang fisik · biaya adm bank Rp 15.000</span></div>
+          <div class="b cust">Yang 50 ribu itu apa?</div>
+          <div class="b bot money">Jujur, saya tidak tahu — dan saya tidak mau menebak. Tidak ada closing yang cocok dengan angka itu. Sudah saya tandai 🔴 untuk dicek Mbak Sari.</div>
+          <div class="moneytag">← THE MONEY MOMENT. It refuses to invent an explanation.</div>
+        </div>
+      </div>
+      <p class="say" style="margin-top:10px"><span class="who">Nura says the line</span>"It caught a fifty-thousand-rupiah discrepancy and refused to guess. <b>That refusal is the product.</b> The math is code, not the model."</p>
+    </div>
+  </div>
+
+  <!-- SCENE 4 -->
+  <div class="scene">
+    <div class="clock"><div class="t">1:40</div><div class="d">20 sec</div></div>
+    <div class="rail"><div class="dot"></div></div>
+    <div class="body">
+      <p class="say"><span class="who">Nura, closing</span></p>
+      <div class="punch">"The intake bot runs in production today. This config is our production format. 70 million businesses in Southeast Asia run on WhatsApp and Excel — this is how each one hires its first AI employee: by talking about their problem for ninety seconds."</div>
+    </div>
+  </div>
+
+  <div class="foot">Sources: fixtures + verdicts in <b>test-data/recon/</b> (arithmetic machine-verified) · full script in DEMO_SCRIPT.md · gates in ATTACK_PLAN.md · repo: Biks-AI-dev/forge-hackathon</div>
+
+</div>
