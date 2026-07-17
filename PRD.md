@@ -33,6 +33,22 @@ Plus one cheap, high-value byproduct: **auto-PRD** — the same ForgeSpec render
 
 Live audio streaming is NOT in scope; upload a finished recording. **Stretch with the best effort-to-wow ratio: the "Forge so far" button.** Mid-meeting, upload the audio recorded up to that point and forge; the client plays with the draft agent while the conversation continues; re-forge at the end with the full transcript. The provisioner already replaces the sandbox for the same business slug, so this is the existing path called twice, not new infrastructure. On stage it reads as building-during-the-call (the viral Todd Saunders demo), without streaming ASR. Other stretch: Oxylabs pre-research on the client's business. Explicitly out of scope: WhatsApp inside sandboxes, billing, auth, dashboards, multi-tenant registry, running our full production agent framework inside the sandbox.
 
+## 2b. The agent roster and the Biks Method
+
+The pipeline is presented (and built) as five specialist agents, not one blob. Each is one focused brain call with its own system prompt and a named deliverable, chained by the orchestrator. This is honest multi-agent: distinct roles, distinct artifacts, one assembly line.
+
+| Agent | Step of the Biks Method | Deliverable |
+|---|---|---|
+| The Listener | **Listen** — transcribe the meeting / parse the chat, extract facts from files | Fact sheet (JSON) |
+| The Analyst | **Map · Quantify · Prioritize** — current-state workflow map, hours lost per workflow, impact × effort matrix | Diagnostic: workflow map + Automation Priority Matrix |
+| The Architect | **Build (spec)** — turn the diagnosis into build documents | PRD draft + ForgeSpec |
+| The Builder | **Build (run)** — provision the sandbox, assemble the agent | The live agent at a chat URL |
+| The Inspector | QA — converse with the forged agent, verify prices, payment guardrail, escalation | Test report (pass/fail per acceptance check) |
+
+The Biks Method (say it exactly this way to clients and judges): **Listen → Map → Quantify → Prioritize → Build.** The Prioritize artifact is a 2×2 impact-versus-effort matrix over the client's workflows; it justifies which agent gets built first and reads like a consulting deliverable, which is the point. The Inspector runs before the client ever sees the link: an agent that QAs the agent is our guardrail identity, demoed.
+
+Build order note: the Listener, Architect, and Builder are the midday-gate path (they existed in section 2 under other names). The Analyst's matrix and the Inspector are afternoon work, high pitch value, low risk, each one brain call plus a template.
+
 ## 3. The contract: ForgeSpec
 
 The intake bot already emits a 26-field blueprint JSON. For the Forge we use a trimmed, agent-shaped spec. A mapper from blueprint → ForgeSpec is ~30 lines and can be written last; for most of the day, work from the hand-written sample below.
