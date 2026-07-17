@@ -34,6 +34,11 @@ On the phone, in the sandbox chat, he asks exactly:
 
 Close: "Mbak Sari's two hours are now this chat. And this config file is the same format running our production clients today."
 
+
+## STAGE VERSION: the 2-minute cut (the real agenda allows 2 min, not 4)
+
+The 4 beats above are the FULL script: use it for tonight's recording and the backup video. On stage, run the compressed cut in `ATTACK_PLAN.md` ("The 2-minute stage cut"): 20s meeting snip + confirm screen, 30s live forge, 50s Pak Dharma's two questions ending on the 50k refusal, 20s close. Rehearse timed, twice, before 16:00 SGT.
+
 ## Fallbacks
 
 - Meeting audio fails on stage → play tonight's recording (Beat 1 is identical).
