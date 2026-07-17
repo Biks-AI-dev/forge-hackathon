@@ -53,7 +53,18 @@ Build order note: the Listener, Architect, and Builder are the midday-gate path 
 
 **Read `WORKFLOW_LIBRARY.md` in this folder first** — it maps the seven production workflows the Forge clones and the config seam of each.
 
-**WHAT THE DEMO SHOWS (locked): THE FORGE, cloning a proven workflow from our library.** Nura roleplays a NEW prospect: an F&B owner whose admin loses 2-3 hours every morning matching bank mutasi against SPG shift closings, the same basic pain our real reconciliation client described in a real meeting. The Forge listens, recognizes this as our proven reconciliation workflow (Workflow #2 in WORKFLOW_LIBRARY.md), and clones it for HIS business: his channels, his fees, his outlets. The forged agent is NOT built from scratch tomorrow; it is a trimmed port of the engine we already run in production, stamped with the new client's config. The star of the demo is the Forge; the recon agent is the proof it works. The pitch line: "We didn't build a reconciliation bot today. We already had one, live with a real client. We built the Forge: it heard a stranger's problem and cloned our proven workflow for him in 90 seconds." Sales & Order stays as the secondary library entry, wired only if time allows.
+**WHAT THE DEMO SHOWS: THE FORGE ROUTES, THEN CLONES.** Nura roleplays a NEW prospect describing ANY business pain - he may tell a reconciliation story (like our real baba client), a customer-service/order story (like Sentuh Rasa), or improvise. The pipeline must survive improvisation because the routing is the product:
+
+1. **Listen** - extract the painpoints from the meeting/chat (this is what our production intake bot already does; reuse its routing logic - see `biks-intake/SKILL.md` in the private repo and the intake-routing map in WORKFLOW_LIBRARY.md).
+2. **Route** - the Analyst maps the painpoint to a workflow in the library: `recon` (baba pattern) or `sales` (Sentuh Rasa/Rosalie pattern) for tomorrow; the architecture must make adding a third template obviously trivial.
+3. **Clone + configure** - stamp the prospect's config (channels/fees/outlets for recon; catalogue/prices/store for sales) onto the matched workflow template. Templates are trimmed ports of the production patterns, never built from scratch.
+4. **Forge + hand over** - Daytona sandbox, chat URL, and the forged agent's FIRST message is a personalized "how to use me" onboarding (copy the baba pattern - baba greets new groups with exactly this). It is an AI employee that starts working immediately: takes the daily closing, reads the mutasi, or takes orders - whatever it was forged as.
+
+**Both workflow templates are required** so the router demonstrably chooses. The recon fixtures in `test-data/recon/` are a TEST AID for that path (they verify the clone computes correctly), not the demo's spine. If the day runs short and only one template ships, Nura must be told which story to tell on stage - that is a fallback, not the plan.
+
+The pitch line: "Whatever problem he had described, the Forge would have picked the matching workflow from our production library and cloned it for him. The Forge is the product; the library is the moat."
+
+**Daytona's role is the business model, not stage dressing:** every agent Biks forges is tested by the customer in its sandbox. Customer confirms it solves the pain, pays the fee, and ONLY THEN do we buy a WhatsApp number and deploy (Cloud API config on our existing WABA). Try, then pay, then deploy.
 
 The ForgeSpec carries a `workflow` discriminator. The recon variant, sample for the demo persona (see `DEMO_SCRIPT.md` and `test-data/recon/`):
 
@@ -165,6 +176,9 @@ Test data: `sessions/62812xxxx7431-dapur-bu-sari/` in this repo has a realistic 
 - [ ] The Beat-1 meeting recording (DEMO_SCRIPT.md) produces a confirmable recon ForgeSpec: 2 outlets, 5 channels, assumed fee rates flagged for confirmation
 - [ ] Feeding `closing-DN1-16jul.txt` + `mutasi-BCA-17jul.csv` yields EXACTLY the verdicts in `test-data/recon/EXPECTED_OUTPUT.md` (QRIS/Grab/Transfer matched with fees 10.010/168.000/0, GoFood in-transit expecting ±1.000.000, the 50.000 credit RED)
 - [ ] "Yang 50 ribu itu apa?" NEVER yields an invented explanation, always the ask-the-admin line
+- [ ] **Router**: a recon-pain description routes to `recon`; an order-chaos description routes to `sales` - from the meeting text alone, no hints
+- [ ] **Sales template**: forged sales agent quotes only catalogue prices, recomputes totals in code, never confirms an unverified payment
+- [ ] **Onboarding message**: every forged agent's first message is a personalized "how to use me" (the baba greeting pattern), in the client's language
 - [ ] The auto-PRD draft renders from the same spec
 - [ ] Three sandboxes for three different specs run simultaneously (stretch)
 - [ ] Backup screen recording of the full arc exists before final pitches

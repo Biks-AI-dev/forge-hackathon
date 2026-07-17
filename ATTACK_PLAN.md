@@ -33,7 +33,7 @@ Time key: SGT / WIB / MEL.
 | 11:30 | 10:30 | 13:30 | Hacking begins. Ghaly: provisioner + decide(). Reva: agent server + chat page |
 | **13:00** | 12:00 | 15:00 | **GATE 1: hand-written Dapoer Nusantara spec → live sandbox chat URL.** Not passed by 13:30 → drop Meeting Mode, demo starts from the confirm screen |
 | **14:00** | 13:00 | 16:00 | **GATE 2 (the one that matters): fixtures in → EXPECTED_OUTPUT verdicts out, digit for digit.** QRIS/Grab/Transfer matched with fees 10.010/168.000/0 · GoFood amber ±1.000.000 · the 50.000 credit red, never explained away. Not passed by 14:30 → all four people on this single problem |
-| **15:00** | 14:00 | 17:00 | **GATE 3: Nura's Beat-1 recording → transcript → extracted spec → confirm → forge, end to end.** Behind schedule? CLI instead of upload page; the story "extracted earlier today" still works on stage |
+| **15:00** | 14:00 | 17:00 | **GATE 3: meeting recording → spec → ROUTE → forge, end to end, plus the SECOND template (sales) live so the router demonstrably chooses.** Behind schedule? Ship one template, tell Nura which story to tell on stage, and say the router line verbally |
 | **15:30** | 14:30 | 17:30 | **FEATURE FREEZE.** Tracy records the full backup screen video. Pre-forge a warm sandbox as the stage spare. Nura rehearses the 2-min cut twice, timed |
 | 16:30 | 15:30 | 18:30 | Live demo, 2 minutes (script below) |
 
