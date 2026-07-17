@@ -49,32 +49,43 @@ The Biks Method (say it exactly this way to clients and judges): **Listen → Ma
 
 Build order note: the Listener, Architect, and Builder are the midday-gate path (they existed in section 2 under other names). The Analyst's matrix and the Inspector are afternoon work, high pitch value, low risk, each one brain call plus a template.
 
-## 3. The contract: ForgeSpec
+## 3. The contract: ForgeSpec v2 (aligned to production)
 
-The intake bot already emits a 26-field blueprint JSON. For the Forge we use a trimmed, agent-shaped spec. A mapper from blueprint → ForgeSpec is ~30 lines and can be written last; for most of the day, work from the hand-written sample below.
+**Read `WORKFLOW_LIBRARY.md` in this folder first.** The forged agent is a mini version of Workflow #1 (Sales & Order, the Rosalie/Sentuh Rasa pattern), and the spec's `products` block uses **the real `products.json` schema from the biks-forge platform** — `store{}` + `categories[].variants[]{id,name,price,aliases}`. That makes the demo's closing line literal: this exact config drops into the production platform that runs Rosalie today. The `persona` block maps to the platform's `_SYSTEM_BASE` prompt; `policy` maps to env/config knobs.
 
 ```json
 {
-  "business_name": "Sari's Catering",
-  "industry": "catering",
-  "language": "en",
-  "tone": "warm, brief, professional",
-  "catalogue": [
-    { "name": "Nasi Box Ayam Bakar", "unit_price": 35000 },
-    { "name": "Tumpeng Mini",        "unit_price": 150000 }
-  ],
-  "currency": "IDR",
-  "workflows": ["take_order", "check_payment", "daily_recap"],
-  "owner_name": "Bu Sari",
-  "guardrails": [
-    "never invent a price — catalogue only",
-    "never confirm an unverified payment",
-    "escalate anything unusual to the owner"
-  ]
+  "persona": {
+    "agent_name": "Sari",
+    "language": "id",
+    "tone": "warm, brief, professional",
+    "owner_name": "Bu Sari"
+  },
+  "products": {
+    "store": { "name": "Sari's Catering", "location": "Kebayoran, Jakarta Selatan",
+               "hours": "08.00-17.00 WIB", "wa_number": "", "kurir": "internal" },
+    "categories": [
+      { "name": "Nasi Box", "variants": [
+        { "id": "NB-AYB", "name": "Nasi Box Ayam Bakar", "price": 35000, "aliases": ["ayam bakar"] },
+        { "id": "TP-MIN", "name": "Tumpeng Mini", "price": 150000, "aliases": ["tumpeng"] }
+      ] }
+    ]
+  },
+  "policy": {
+    "currency": "IDR",
+    "payment": "transfer-with-proof",
+    "guardrails": [
+      "never invent a price — catalogue only",
+      "never confirm an unverified payment — owner verifies",
+      "off-catalogue or unusual requests escalate to the owner"
+    ]
+  }
 }
 ```
 
-Test data: `test-data/Order Juni 2026.xlsx` in this repo is a realistic (fabricated) 366-row order log for this exact persona.
+**Why this matters (the promotion story, tell it exactly like this):** production onboarding today is 8 manual steps (`ROSALIE_MIGRATION_PLAN.md` in the platform repo): copy the app skeleton, write products.json, write the persona, tests, fill .env, CI, Caddy, dashboard. The Forge's Architect auto-generates steps 2, 3, and 5 (products.json, persona text, prefilled .env template). Promotion to real WhatsApp is a **Cloud API phone-number config on the existing WABA** — the production norm across four Biks deployments — not a SIM purchase. Sandbox test drive → client yes → founder runs the remaining mechanical steps with the generated files.
+
+Test data: `sessions/62812xxxx7431-dapur-bu-sari/` in this repo has a realistic 366-row order Excel and a finished intake spec for this exact persona.
 
 ## 4. Component specs
 
@@ -88,8 +99,9 @@ Test data: `test-data/Order Juni 2026.xlsx` in this repo is a realistic (fabrica
 ### 4.2 Sandbox agent
 
 - One file if possible. Reads `spec.json` from disk.
-- System prompt assembled FROM the spec (persona, tone, catalogue as a price list, workflows). Keep it under a page.
-- Kimi is the brain: OpenAI-compatible chat completions endpoint (key + exact base URL from the sponsor booth; put both in env, never hardcode).
+- Architecture is the estate-wide Biks pattern, **understand → decide → speak** (see WORKFLOW_LIBRARY.md DNA): Kimi classifies the customer message into an intent + items (understand), deterministic code resolves SKUs from `products` and computes totals and state (decide), Kimi phrases the code-drafted reply in the persona's voice (speak). If the voice step ever drops or changes a number, send the code-drafted text instead (kopi's token-survival trick, simplified).
+- System prompt assembled FROM the spec (persona + store + price list). Keep it under a page.
+- Kimi via OpenAI-compatible chat completions (key + base URL from the sponsor booth; env, never hardcode).
 - Conversation state in memory per browser session id. No DB.
 
 ### 4.3 Guardrails, in code (this is the judged differentiator, do not skip)
