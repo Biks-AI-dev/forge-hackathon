@@ -1,63 +1,72 @@
 # Attack Plan · Daytona Hackathon
 
-Hard constraints that shape everything: **hacking runs 11:30–16:30 SGT (5 hours, lunch inside it)** and **the stage demo is 2 minutes**. The plan is built backward from those two numbers.
+**What we are building, one sentence:** the Forge — a meeting with a prospect becomes their own AI employee in minutes; the LINK goes to the prospect, they type "halo", and the agent already knows them and guides them, exactly like production baba greets its client.
 
-Team topology: **Nura + Tracy in the room (Singapore)** · **Ghaly (Dev A) + Reva (Dev B) building remotely (Indonesia, SGT−1)** · **Adith async from Melbourne (SGT+2)**. Daytona is cloud, so remote building works; the room only needs a laptop, a phone, and the sponsor keys.
+Hard constraints: **hacking runs 11:30–16:30 SGT (5 hours, lunch inside)** and **the stage demo is 2 minutes**. Everything below is built backward from those.
 
-Time key: SGT / WIB / MEL.
+Team: **Nura + Tracy in the room (Singapore)** · **Ghaly (Dev A) + Reva (Dev B) remote (Indonesia, SGT−1)** · **Adith async (Melbourne, SGT+2)**. Daytona is cloud; the room only needs a laptop, a phone, and the sponsor keys.
 
-## Roles, one line each
+## The demo we are building toward (read demo-storyboard.html — it IS the definition of done)
 
-| Who | Role | Owns |
-|---|---|---|
-| Nura | The client & the pitch | Beat-1 recording, Pak Dharma roleplay, 2-min demo delivery, sponsor relationships |
-| Tracy | In-room orchestrator | Gate calls, relaying sponsor keys to devs, running the demo machine, timeboxing, the backup recording |
-| Ghaly (Dev A) | Provisioner + recon engine | spec → Daytona sandbox → URL; the deterministic `decide()` (he knows the baba pattern) |
-| Reva (Dev B) | Sandbox agent + channel | agent server + Kimi + chat page; Daytona setup (his SANDBOX_SETUP notes → PR into this repo tonight) |
-| Adith | Async architect | Reviews at every gate via WA; unblocks on protocol/spec questions |
+1. Meeting: prospect describes company → painpoint → what to solve (Nura roleplays; any story works)
+2. Forge: routes the pain to the production library (recon | sales), clones the matched workflow, stamps the prospect's config
+3. Handover: **the link is sent to the PROSPECT's phone**
+4. **THE HALO MOMENT: prospect types "halo" → the agent greets them by name, names their painpoint unprompted, and delivers the role-by-role panduan (production baba's exact structure: tugasku / cara pakai per role / echo→"ya"→tercatat ✅ / status 🟢🟡🔴 / ajak coba)** — then it works
+5. Close: try in sandbox → pay when it solves the pain → only then WhatsApp
 
-## Tonight, before sleep (checklist)
+## Roles
 
-- [ ] Everyone: `git pull` on forge-hackathon; read `PRD.md`, `DEMO_SCRIPT.md`, `test-data/recon/EXPECTED_OUTPUT.md`
-- [ ] **Nura: record Beat 1** of DEMO_SCRIPT.md on his phone, one take, numbers EXACTLY as written; drop the file in the team WA group. This is the day's most important artifact: extractor fixture + stage fallback in one.
-- [ ] Reva: PR his Daytona setup .md into this repo as `SANDBOX_SETUP.md`
-- [ ] Ghaly: skim `bali-banana-recon` engine (he knows it) and `EXPECTED_OUTPUT.md`; the decide() is a ~150-line simplification of what he already built
-- [ ] Tracy: read this file + DEMO_SCRIPT.md twice; she is the one who says "gate passed" or "cut scope"
+| Who | Owns |
+|---|---|
+| Nura | Beat-1 meeting recording (tonight), the roleplay, the 2-min delivery, sponsor relationships |
+| Tracy | Gate calls + scope cuts, relaying sponsor keys, running the demo machine, backup recording, timeboxing |
+| Ghaly (Dev A) | Provisioner (spec → Daytona → URL) + the recon engine port (he built the production one) |
+| Reva (Dev B) | Sandbox agent template + Kimi + halo greeting + chat page; Daytona setup (his notes → `SANDBOX_SETUP.md`) |
+| Adith | Async review at every gate via WA, replies within the hour |
 
-## The day, backward from the demo
+## Tonight, before sleep
 
-| SGT | WIB | MEL | Milestone (gate = Tracy calls it in WA) |
+- [ ] Everyone: `git pull`, read `PRD.md`, `DEMO_SCRIPT.md`, open `demo-storyboard.html` in a browser
+- [ ] **Nura: record Beat 1** (the meeting monologue in DEMO_SCRIPT.md), one take, numbers exactly as written, drop in WA
+- [ ] Reva: PR the Daytona setup notes as `SANDBOX_SETUP.md`
+- [ ] Ghaly: skim the production recon engine + `test-data/recon/EXPECTED_OUTPUT.md`
+- [ ] Tracy: read this file twice; tomorrow she calls gates and cuts scope
+
+## Gates (SGT / WIB / MEL) — Tracy calls each in WA
+
+| SGT | WIB | MEL | Gate |
 |---|---|---|---|
-| 10:00 | 09:00 | 12:00 | Kickoff. Tracy opens a video call/screen-share with Ghaly & Reva that stays on ALL DAY |
-| 10:30 | 09:30 | 12:30 | Workshop: Tracy+Nura collect Daytona/Kimi/Nosana keys → paste to devs immediately. Devs replay the workshop steps remotely via SANDBOX_SETUP.md |
-| 11:30 | 10:30 | 13:30 | Hacking begins. Ghaly: provisioner + decide(). Reva: agent server + chat page |
-| **13:00** | 12:00 | 15:00 | **GATE 1: hand-written Dapoer Nusantara spec → live sandbox chat URL.** Not passed by 13:30 → drop Meeting Mode, demo starts from the confirm screen |
-| **14:00** | 13:00 | 16:00 | **GATE 2 (the one that matters): fixtures in → EXPECTED_OUTPUT verdicts out, digit for digit.** QRIS/Grab/Transfer matched with fees 10.010/168.000/0 · GoFood amber ±1.000.000 · the 50.000 credit red, never explained away. Not passed by 14:30 → all four people on this single problem |
-| **15:00** | 14:00 | 17:00 | **GATE 3: meeting recording → spec → ROUTE → forge, end to end, plus the SECOND template (sales) live so the router demonstrably chooses.** Behind schedule? Ship one template, tell Nura which story to tell on stage, and say the router line verbally |
-| **15:30** | 14:30 | 17:30 | **FEATURE FREEZE.** Tracy records the full backup screen video. Pre-forge a warm sandbox as the stage spare. Nura rehearses the 2-min cut twice, timed |
-| 16:30 | 15:30 | 18:30 | Live demo, 2 minutes (script below) |
+| 10:00 | 09:00 | 12:00 | Kickoff. Tracy opens the all-day video call with Ghaly & Reva |
+| 10:30 | 09:30 | 12:30 | Workshop. Keys collected → pasted to devs immediately. Devs replay via SANDBOX_SETUP.md |
+| 11:30 | 10:30 | 13:30 | Hacking. Ghaly: provisioner + recon port. Reva: agent template + halo greeting + chat page |
+| **13:00** | 12:00 | 15:00 | **G1: hand-written recon spec → Daytona sandbox → live chat URL.** Late by 30 min → Meeting Mode becomes CLI, nothing else changes |
+| **14:00** | 13:00 | 16:00 | **G2, the day's center: THE HALO TEST + the fixtures.** Fresh browser, type only "halo" → greeting knows the name, the painpoint, the roles (generic greeting = FAIL). Then closing + mutasi in → `EXPECTED_OUTPUT.md` verdicts out, digit for digit, ending in the 50k refusal. Late by 30 min → all four devs+Tracy swarm this |
+| **15:00** | 14:00 | 17:00 | **G3: full pipeline + router.** Nura's recording → spec → ROUTE → forge, end to end; sales template live so the router demonstrably chooses. Behind? Ship recon only, brief Nura to tell the recon story, say the router line verbally |
+| **15:30** | 14:30 | 17:30 | **FREEZE.** Backup screen video (Tracy). Warm spare sandbox. Nura rehearses the 2-min cut twice, timed |
+| 16:30 | 15:30 | 18:30 | Stage. 2 minutes |
 
-Adith async check-ins from Melbourne at each gate time (14:00 / 16:00 / 17:00 MEL): Tracy posts gate status + blockers in WA, Adith replies within the hour.
+Adith checks WA at 15:00 / 16:00 / 17:00 MEL; Tracy posts gate status + blockers.
 
-## The 2-minute stage cut (the 4-beat script compressed)
+## The 2-minute stage cut
 
-- **0:00–0:20** Nura: "This morning I met a restaurant owner. Here's 10 seconds of that meeting." Play a snip of the recording, then show the extracted spec on the confirm screen: "Our agents listened, mapped his channels, his fees, his pain."
-- **0:20–0:50** Tap Forge, live. Sandbox spins on the projector. One line while it builds: "Listener heard him, Architect wrote the spec, Builder is forging his agent in its own isolated machine, Inspector tests it before he sees it."
-- **0:50–1:40** Phone in hand, as Pak Dharma: "Gimana kemarin?" → the verdict summary with real numbers. Then the money moment: "Yang 50 ribu itu apa?" → the agent refuses to guess and flags it for the admin. Say it: **"It caught a 50,000-rupiah discrepancy and refused to invent an explanation. That refusal is the product."**
-- **1:40–2:00** Close: "The intake runs in production today. This config is our production format. 70 million SEA businesses run on WhatsApp and Excel; this is how they hire their first AI employee: by talking."
+- **0:00–0:20** Nura: "This morning I met a restaurant owner. Two outlets. Every morning his admin loses three hours matching the bank against last night's closings. Here's ten seconds of that meeting." (play snip)
+- **0:20–0:45** "Our Forge listened, recognized this as the reconciliation workflow we already run in production, and cloned it for him." Tap FORGE live; sandbox spins on the projector.
+- **0:45–1:40** "Then we did what we always do: we sent HIM the link." Phone on screen. Type "halo". **Pause 5 seconds so the room reads the greeting that already knows him.** Then one worked exchange: closing + mutasi in → verdicts out → "yang 50 ribu itu apa?" → the refusal. Say: "It caught a fifty-thousand-rupiah discrepancy and refused to guess. That is the product."
+- **1:40–2:00** "He tries it in its own sandbox. When it solves his pain, he pays. Only then do we put it on WhatsApp. If he'd described a different problem, you'd have met a different employee. The Forge is the product; the library is the moat."
 
-Fallbacks, in order: warm pre-forged sandbox → backup screen video. Both must exist by 15:45, no exceptions.
+Fallbacks in order: warm pre-forged sandbox → backup video. Both exist by 15:45, no exceptions.
 
-## Scope discipline for a 5-hour window
+## Scope
 
-Build ONLY: provisioner, sandbox agent with deterministic decide(), chat page, extraction from the recording. **Already cut for time** (do not resurrect unless all gates pass early): the Analyst's 2×2 matrix, the Inspector as a separate agent (Tracy manually runs the EXPECTED_OUTPUT checks instead), auto-PRD, upload page polish, Oxylabs, 3-sandbox moment, "Forge so far".
+Build only: provisioner · sandbox agent template (halo greeting + understand→decide→speak) · recon engine port · sales template · router · chat page · meeting-recording → spec extraction. Cut without discussion if time bites, in this order: upload-page polish (CLI is fine) → sales template (brief Nura) → Nosana/Oxylabs → everything else already parked in the PRD.
 
-## Risks with owners
+## Risks
 
 | Risk | Mitigation | Owner |
 |---|---|---|
-| Kimi key arrives late / model flaky | Agent runs on any OpenAI-compatible endpoint; env-swap only. Build against what works, swap at 15:00 | Reva |
-| Venue wifi vs remote devs | Everything lives in the cloud (repo + Daytona); the room only opens URLs. Tracy can run every step from her laptop alone | Tracy |
-| Gate 2 arithmetic wrong | decide() is pure functions; test locally against fixtures BEFORE wiring to the sandbox | Ghaly |
-| 2-min overrun | Rehearse timed, twice. Cut beat 1 first if over, never beat 3 (the 50k moment) | Nura |
-| Demo-time sandbox death | Warm spare + backup video from 15:45 | Tracy |
+| Kimi key late/flaky | Any OpenAI-compatible endpoint; env swap only | Reva |
+| Venue wifi vs remote devs | Everything cloud; Tracy can run every step alone from her laptop | Tracy |
+| Halo greeting comes out generic | It is templated from the spec (name, painpoint, roles interpolated), not freestyle LLM prose; the LLM only voices it | Reva |
+| Verdict arithmetic wrong | decide() is pure functions, tested against fixtures locally before wiring | Ghaly |
+| 2-min overrun | Rehearse timed twice; if over, cut the forge-spin wait, never the halo pause or the 50k refusal | Nura |
+| Sandbox dies on stage | Warm spare + backup video | Tracy |
