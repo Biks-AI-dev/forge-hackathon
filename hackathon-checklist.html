@@ -1,0 +1,207 @@
+<title>Biks Forge · Hackathon Day Checklist</title>
+<style>
+  :root {
+    --paper:#FAF8F4; --ink:#1A1A1A; --muted:#5C5C5C; --hairline:#DEDBD4;
+    --teal:#0F766E; --teal-tint:#E7F0EE;
+    --amber:#B45309; --amber-tint:#FBEEDD;
+    --red:#A8554C; --red-tint:#F4E9E7;
+  }
+  * { box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink); margin:0;
+    font-family:"Segoe UI",-apple-system,Roboto,Helvetica,Arial,sans-serif; line-height:1.45; }
+  .page { max-width:640px; margin:0 auto; padding:28px 18px 70px; }
+
+  .top { display:flex; justify-content:space-between; align-items:center;
+    border-bottom:2px solid var(--ink); padding-bottom:10px; }
+  .wordmark { font-weight:800; font-size:20px; }
+  .wordmark span { color:var(--teal); }
+  .progress { font-size:14px; font-weight:800; color:var(--teal); }
+
+  h1 { font-size:26px; line-height:1.15; margin:20px 0 6px; }
+  .sub { font-size:15px; color:var(--muted); margin:0 0 8px; }
+  .goal { background:var(--teal); color:#fff; border-radius:10px; padding:14px 16px;
+    font-size:16px; font-weight:700; line-height:1.45; margin:14px 0 26px; }
+
+  .block { border:2px solid var(--hairline); border-radius:14px; margin-bottom:18px; overflow:hidden; }
+  .block.gate { border-color:var(--teal); }
+  .bhead { display:flex; align-items:center; gap:12px; padding:12px 14px; background:#fff; }
+  .block.gate .bhead { background:var(--teal-tint); }
+  .clock { min-width:86px; text-align:center; background:var(--ink); color:#fff;
+    border-radius:9px; padding:6px 4px; }
+  .block.gate .clock { background:var(--teal); }
+  .clock .sgt { font-size:17px; font-weight:800; letter-spacing:0.02em; }
+  .clock .wib { font-size:10px; opacity:.8; }
+  .btitle { font-size:16.5px; font-weight:800; line-height:1.2; }
+  .btitle small { display:block; font-weight:500; font-size:12.5px; color:var(--muted); margin-top:2px; }
+
+  .items { padding:4px 10px 10px; background:#FCFBF8; }
+  label.item { display:flex; gap:11px; align-items:flex-start; padding:9px 6px;
+    border-bottom:1px dashed var(--hairline); font-size:15px; cursor:pointer; user-select:none; }
+  label.item:last-child { border-bottom:none; }
+  label.item input { width:22px; height:22px; flex:none; accent-color:var(--teal); margin-top:1px; cursor:pointer; }
+  label.item .who { font-size:10.5px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase;
+    color:#fff; background:var(--muted); border-radius:3px; padding:2px 7px; margin-right:2px; white-space:nowrap; }
+  .who.nura { background:#7C3AED; } .who.tracy { background:var(--teal); }
+  .who.ghaly { background:var(--amber); } .who.reva { background:#1D4ED8; }
+  .who.all { background:var(--ink); } .who.adith { background:var(--red); }
+  label.item input:checked ~ span.txt { text-decoration:line-through; color:var(--muted); }
+
+  .late { margin:0 14px 12px; background:var(--amber-tint); border-left:4px solid var(--amber);
+    border-radius:6px; padding:8px 12px; font-size:13px; }
+  .late b { color:var(--amber); }
+
+  .divider { text-align:center; font-size:12px; font-weight:800; letter-spacing:0.16em;
+    text-transform:uppercase; color:var(--muted); margin:26px 0 14px; }
+
+  .script { background:#fff; border:2px solid var(--hairline); border-radius:14px; padding:14px 16px; }
+  .script .row { display:flex; gap:12px; padding:7px 0; border-bottom:1px dashed var(--hairline); font-size:14.5px; }
+  .script .row:last-child { border-bottom:none; }
+  .script .t { min-width:74px; font-weight:800; color:var(--teal); font-variant-numeric:tabular-nums; }
+  .wow { background:var(--teal-tint); border-radius:6px; padding:2px 6px; font-weight:700; }
+  .no { background:var(--red-tint); border-radius:6px; padding:2px 6px; font-weight:700; color:var(--red); }
+
+  .panic { background:var(--red-tint); border:2px solid var(--red); border-radius:14px; padding:14px 16px; }
+  .panic h3 { margin:0 0 8px; font-size:15px; color:var(--red); }
+  .panic ol { margin:0; padding-left:20px; font-size:14.5px; }
+  .panic li { margin-bottom:5px; }
+
+  .foot { margin-top:26px; font-size:12px; color:var(--muted); text-align:center; }
+  .reset { display:block; margin:14px auto 0; font-size:11px; color:var(--muted);
+    background:none; border:1px solid var(--hairline); border-radius:6px; padding:4px 12px; cursor:pointer; }
+</style>
+
+<div class="page">
+
+  <div class="top">
+    <div class="wordmark">biks<span>.</span>ai</div>
+    <div class="progress"><span id="done">0</span>/<span id="total">0</span> done ✅</div>
+  </div>
+
+  <h1>Hackathon Day · tick as you go 👇</h1>
+  <p class="sub">Boxes save on this device. Tracy ticks the gates. Everyone can open this page.</p>
+
+  <div class="goal">🎯 The one thing we're building: prospect types "halo" → their AI employee ALREADY KNOWS them (name + problem + how-to guide) → then it works. Everything on this page serves that moment.</div>
+
+  <!-- TONIGHT -->
+  <div class="block">
+    <div class="bhead"><div class="clock"><div class="sgt">TONIGHT</div><div class="wib">before sleep</div></div>
+      <div class="btitle">Prep 🌙<small>15 minutes each, that's all</small></div></div>
+    <div class="items">
+      <label class="item"><input type="checkbox"><span class="who all">all</span><span class="txt">git pull → read PRD.md → open demo-storyboard.html (that page = what "done" looks like)</span></label>
+      <label class="item"><input type="checkbox"><span class="who nura">nura</span><span class="txt">Record the meeting speech (DEMO_SCRIPT.md Beat 1). Say the numbers EXACTLY. One take. Drop in WA 🎙</span></label>
+      <label class="item"><input type="checkbox"><span class="who reva">reva</span><span class="txt">Push your Daytona setup notes to the repo as SANDBOX_SETUP.md</span></label>
+      <label class="item"><input type="checkbox"><span class="who ghaly">ghaly</span><span class="txt">Skim your recon engine + test-data/recon/EXPECTED_OUTPUT.md (tomorrow you port it, smaller)</span></label>
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Read ATTACK_PLAN.md twice. Tomorrow YOU call the gates 📣</span></label>
+    </div>
+  </div>
+
+  <div class="divider">— hackathon day —</div>
+
+  <!-- MORNING -->
+  <div class="block">
+    <div class="bhead"><div class="clock"><div class="sgt">10:00</div><div class="wib">09:00 WIB</div></div>
+      <div class="btitle">Kickoff + workshop ☕<small>get connected, get keys</small></div></div>
+    <div class="items">
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Start the video call with Ghaly & Reva. It stays ON all day 📞</span></label>
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Get keys at the booths (Daytona, Kimi, Nosana) → paste to devs the second you have them 🔑</span></label>
+      <label class="item"><input type="checkbox"><span class="who reva">reva</span><span class="txt">Sandbox up remotely using SANDBOX_SETUP.md</span></label>
+    </div>
+  </div>
+
+  <!-- HACKING -->
+  <div class="block">
+    <div class="bhead"><div class="clock"><div class="sgt">11:30</div><div class="wib">10:30 WIB</div></div>
+      <div class="btitle">Hacking begins 🔨<small>two lanes, no meetings</small></div></div>
+    <div class="items">
+      <label class="item"><input type="checkbox"><span class="who ghaly">ghaly</span><span class="txt">Lane A: provisioner (spec in → Daytona sandbox out → chat URL back) + port the recon math</span></label>
+      <label class="item"><input type="checkbox"><span class="who reva">reva</span><span class="txt">Lane B: the agent in the sandbox (Kimi brain + the "halo" greeting built FROM the spec) + chat page</span></label>
+    </div>
+  </div>
+
+  <!-- GATE 1 -->
+  <div class="block gate">
+    <div class="bhead"><div class="clock"><div class="sgt">13:00</div><div class="wib">12:00 WIB</div></div>
+      <div class="btitle">GATE 1 · It's alive 🟢<small>Tracy posts "G1 ✅" in WA</small></div></div>
+    <div class="items">
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Paste the sample spec → a sandbox spins → a chat link opens on my laptop. That's it.</span></label>
+    </div>
+    <div class="late"><b>Running late (13:30)?</b> Skip the upload page forever. Devs feed specs by hand. Demo unchanged.</div>
+  </div>
+
+  <!-- GATE 2 -->
+  <div class="block gate">
+    <div class="bhead"><div class="clock"><div class="sgt">14:00</div><div class="wib">13:00 WIB</div></div>
+      <div class="btitle">GATE 2 · THE BIG ONE 💥<small>this gate IS the demo. Tracy posts "G2 ✅"</small></div></div>
+    <div class="items">
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Halo test: fresh browser, type only "halo" → it greets Pak Dharma BY NAME, says his problem, gives the how-to guide. If the greeting could be any bot's = ❌</span></label>
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Send the closing + bank file → answers match EXPECTED_OUTPUT.md exactly (fees 10.010 / 168.000, GoFood 🟡 ±1.000.000, the 50.000 🔴)</span></label>
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Ask "yang 50 ribu itu apa?" → it says it does NOT know and flags it. Never guesses 🙅</span></label>
+    </div>
+    <div class="late"><b>Running late (14:30)?</b> EVERYONE stops their lane and swarms this one thing.</div>
+  </div>
+
+  <!-- GATE 3 -->
+  <div class="block gate">
+    <div class="bhead"><div class="clock"><div class="sgt">15:00</div><div class="wib">14:00 WIB</div></div>
+      <div class="btitle">GATE 3 · Full magic 🪄<small>Tracy posts "G3 ✅"</small></div></div>
+    <div class="items">
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Nura's recording in → spec out → routed → forged → halo works. End to end, no hands.</span></label>
+      <label class="item"><input type="checkbox"><span class="who reva">reva</span><span class="txt">Second template (sales/orders) alive → the router visibly CHOOSES between the two</span></label>
+    </div>
+    <div class="late"><b>Running late?</b> Ship recon only. Tell Nura: tell the recon story on stage. Say the router part with words.</div>
+  </div>
+
+  <!-- FREEZE -->
+  <div class="block gate">
+    <div class="bhead"><div class="clock"><div class="sgt">15:30</div><div class="wib">14:30 WIB</div></div>
+      <div class="btitle">FREEZE 🧊 nobody codes after this<small>safety nets + rehearsal</small></div></div>
+    <div class="items">
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Record the backup screen video of the whole flow 🎥</span></label>
+      <label class="item"><input type="checkbox"><span class="who tracy">tracy</span><span class="txt">Pre-forge ONE warm spare sandbox, keep the tab open</span></label>
+      <label class="item"><input type="checkbox"><span class="who nura">nura</span><span class="txt">Rehearse the 2-minute script twice, WITH a timer ⏱</span></label>
+    </div>
+  </div>
+
+  <div class="divider">— 16:30 · stage · 2 minutes —</div>
+
+  <div class="script">
+    <div class="row"><span class="t">0:00</span><span>"I met a restaurant owner this morning. His admin loses 3 hours every morning matching the bank vs closings." Play 10 sec of the recording 🎙</span></div>
+    <div class="row"><span class="t">0:20</span><span>"The Forge recognized his problem = our production reconciliation workflow. It cloned it for him." Tap FORGE, sandbox spins on screen</span></div>
+    <div class="row"><span class="t">0:45</span><span>"Then we sent HIM the link." Type <b>halo</b> on the phone → <span class="wow">PAUSE 5 SECONDS. Let the room read the greeting that knows him.</span> Then: files in → verdicts out → "yang 50 ribu itu apa?" → <span class="no">it refuses to guess</span> → say: "That refusal is the product."</span></div>
+    <div class="row"><span class="t">1:40</span><span>"He tries it in its sandbox. When it solves his pain, he pays. Only then, WhatsApp. Different problem? Different employee. The Forge is the product, the library is the moat." 🎤</span></div>
+  </div>
+
+  <div class="divider">— if things break —</div>
+
+  <div class="panic">
+    <h3>🚨 Panic order (use the first one that works)</h3>
+    <ol>
+      <li>Live forge fails on stage → open the warm spare sandbox tab</li>
+      <li>Spare dead too → play the backup video, narrate over it honestly</li>
+      <li>Stuck on anything > 20 min → post in WA; Adith replies from Melbourne within the hour (checks at every gate)</li>
+    </ol>
+  </div>
+
+  <div class="foot">Repo: github.com/Biks-AI-dev/forge-hackathon · storyboard = demo-storyboard.html · details = ATTACK_PLAN.md / PRD.md
+    <button class="reset" onclick="if(confirm('Clear all ticks?')){localStorage.removeItem('bkf');location.reload()}">reset all ticks</button>
+  </div>
+
+</div>
+
+<script>
+  const boxes = [...document.querySelectorAll('input[type=checkbox]')];
+  const KEY = 'bkf';
+  const saved = JSON.parse(localStorage.getItem(KEY) || '[]');
+  boxes.forEach((b, i) => {
+    if (saved[i]) b.checked = true;
+    b.addEventListener('change', () => {
+      localStorage.setItem(KEY, JSON.stringify(boxes.map(x => x.checked ? 1 : 0)));
+      count();
+    });
+  });
+  function count() {
+    document.getElementById('done').textContent = boxes.filter(b => b.checked).length;
+    document.getElementById('total').textContent = boxes.length;
+  }
+  count();
+</script>
