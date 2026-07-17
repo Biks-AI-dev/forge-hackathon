@@ -51,7 +51,38 @@ Build order note: the Listener, Architect, and Builder are the midday-gate path 
 
 ## 3. The contract: ForgeSpec v2 (aligned to production)
 
-**Read `WORKFLOW_LIBRARY.md` in this folder first.** The forged agent is a mini version of Workflow #1 (Sales & Order, the Rosalie/Sentuh Rasa pattern), and the spec's `products` block uses **the real `products.json` schema from the biks-forge platform** — `store{}` + `categories[].variants[]{id,name,price,aliases}`. That makes the demo's closing line literal: this exact config drops into the production platform that runs Rosalie today. The `persona` block maps to the platform's `_SYSTEM_BASE` prompt; `policy` maps to env/config knobs.
+**Read `WORKFLOW_LIBRARY.md` in this folder first** — it maps the seven production workflows the Forge clones and the config seam of each.
+
+**DEMO USE CASE (locked by the CEO): reconciliation, the baba pattern (Workflow #2 in WORKFLOW_LIBRARY.md).** Nura roleplays an F&B owner whose admin loses 2-3 hours every morning matching bank mutasi against SPG shift closings. The forged agent is a mini-recon bot. The Sales & Order variant stays in the spec as the secondary path, built only if time allows.
+
+The ForgeSpec carries a `workflow` discriminator. The recon variant, sample for the demo persona (see `DEMO_SCRIPT.md` and `test-data/recon/`):
+
+```json
+{
+  "workflow": "recon",
+  "persona": { "agent_name": "Nusa", "language": "id", "tone": "tenang, jelas, tidak menyalahkan", "owner_name": "Pak Dharma", "admin_name": "Mbak Sari" },
+  "business": { "name": "Dapoer Nusantara", "outlets": ["DN1", "DN2"], "bank": "BCA" },
+  "channels": [
+    { "name": "CASH",     "hits_bank": false },
+    { "name": "QRIS",     "fee_rate": 0.007, "settle_days": 1, "assumed": true },
+    { "name": "GOFOOD",   "fee_rate": 0.20,  "settle_days": 2, "assumed": true },
+    { "name": "GRABFOOD", "fee_rate": 0.20,  "settle_days": 1, "assumed": true },
+    { "name": "TRANSFER", "fee_rate": 0.0,   "settle_days": 0 }
+  ],
+  "policy": { "currency": "IDR", "guardrails": [
+    "match on GROSS, book fees separately - never call a fee a selisih",
+    "known settlement delays are amber with expected amount and date",
+    "whatever remains is red: never force the gap to zero, ask the admin"
+  ] }
+}
+```
+
+Fields marked `"assumed": true` came from the Analyst's standard rates and MUST be shown on the confirm screen for the founder to accept or edit.
+
+**The promotion story (still literal):** the recon variant promotes into the production Hermes+MCP reconciliation pattern (same SOUL/AGENTS + bot.env seam as the live pilot); the sales variant emits the production platform's real `products.json` schema. Promotion to WhatsApp is a Cloud API phone-number config on the existing WABA, not a SIM purchase.
+
+
+<details><summary>Secondary path: the Sales & Order variant (build only if time allows)</summary>
 
 ```json
 {
@@ -83,7 +114,9 @@ Build order note: the Listener, Architect, and Builder are the midday-gate path 
 }
 ```
 
-**Why this matters (the promotion story, tell it exactly like this):** production onboarding today is 8 manual steps (`ROSALIE_MIGRATION_PLAN.md` in the platform repo): copy the app skeleton, write products.json, write the persona, tests, fill .env, CI, Caddy, dashboard. The Forge's Architect auto-generates steps 2, 3, and 5 (products.json, persona text, prefilled .env template). Promotion to real WhatsApp is a **Cloud API phone-number config on the existing WABA** — the production norm across four Biks deployments — not a SIM purchase. Sandbox test drive → client yes → founder runs the remaining mechanical steps with the generated files.
+</details>
+
+**Why the sales-variant schema matters (promotion story detail):** production onboarding today is 8 manual steps (`ROSALIE_MIGRATION_PLAN.md` in the platform repo): copy the app skeleton, write products.json, write the persona, tests, fill .env, CI, Caddy, dashboard. The Forge's Architect auto-generates steps 2, 3, and 5 (products.json, persona text, prefilled .env template). Promotion to real WhatsApp is a **Cloud API phone-number config on the existing WABA** — the production norm across four Biks deployments — not a SIM purchase. Sandbox test drive → client yes → founder runs the remaining mechanical steps with the generated files.
 
 Test data: `sessions/62812xxxx7431-dapur-bu-sari/` in this repo has a realistic 366-row order Excel and a finished intake spec for this exact persona.
 
@@ -99,7 +132,8 @@ Test data: `sessions/62812xxxx7431-dapur-bu-sari/` in this repo has a realistic 
 ### 4.2 Sandbox agent
 
 - One file if possible. Reads `spec.json` from disk.
-- Architecture is the estate-wide Biks pattern, **understand → decide → speak** (see WORKFLOW_LIBRARY.md DNA): Kimi classifies the customer message into an intent + items (understand), deterministic code resolves SKUs from `products` and computes totals and state (decide), Kimi phrases the code-drafted reply in the persona's voice (speak). If the voice step ever drops or changes a number, send the code-drafted text instead (kopi's token-survival trick, simplified).
+- Architecture is the estate-wide Biks pattern, **understand → decide → speak** (see WORKFLOW_LIBRARY.md DNA): Kimi parses the message/files into structured rows (understand), deterministic code decides (below), Kimi phrases the code-drafted reply in the persona's voice (speak). If the voice step drops or changes a number, send the code-drafted text instead (kopi's token-survival trick, simplified).
+- **The recon decide() - the whole engine is ~150 lines, write it as pure functions:** normalize channel names (aliases: "gofood"/"go food"/"gojek" → GOFOOD); parse closing text → gross per channel; parse mutasi CSV → credits with descriptions; classify each credit to a channel by description keywords; match on GROSS: credit ≈ gross − round(fee_rate × gross) → MATCHED with fee booked separately; unmatched closing channel with settle_days > 0 → IN-TRANSIT with expected net amount and date; unmatched bank credit or residual → RED, never forced to zero; CASH (hits_bank false) and bank DB rows → info. The acceptance fixture in `test-data/recon/EXPECTED_OUTPUT.md` defines every verdict and number this must produce.
 - System prompt assembled FROM the spec (persona + store + price list). Keep it under a page.
 - Kimi via OpenAI-compatible chat completions (key + base URL from the sponsor booth; env, never hardcode).
 - Conversation state in memory per browser session id. No DB.
@@ -120,19 +154,18 @@ Test data: `sessions/62812xxxx7431-dapur-bu-sari/` in this repo has a realistic 
 |---|---|---|---|
 | Workshop | Daytona SDK hello-world: sandbox → server → preview URL. Everyone does this once. | | |
 | Morning | Provisioner: spec → sandbox → URL | Sandbox agent + Kimi + guardrails | Chat page, ForgeSpec samples, keys from sponsor booths |
-| **Midday gate 1** | **Bu Sari spec (hand-written JSON) → live chat link, end to end. Nothing else matters until this passes.** | | |
-| Afternoon | Meeting Mode: upload → transcribe → spec extract → confirm screen | Guardrail polish; latency measurement; auto-PRD template | Record the fake "client meeting" audio for the demo; pitch; backup screen recording |
+| **Midday gate 1** | **Dapoer Nusantara recon spec (hand-written JSON) → live chat link → correct verdicts on the fixtures. Nothing else matters until this passes.** | | |
+| Afternoon | Meeting Mode: upload → transcribe → spec extract → confirm screen | Guardrail polish; latency measurement; auto-PRD template | Record Beat 1 of DEMO_SCRIPT.md as the meeting fixture; pitch; backup screen recording |
 | **Gate 2** | **Meeting recording → confirmed spec → forged agent, end to end. This is the stage demo.** | | |
 | If time | 3-sandbox parallel moment | Oxylabs pre-research beat | Pitch rehearsal twice |
 
 ## 6. Acceptance criteria
 
-- [ ] `POST /forge` with the Bu Sari spec returns a working chat URL in < 90 s (measure, record the number)
-- [ ] A ~2-minute meeting recording + one Excel produces a correct, confirmable ForgeSpec (business name, ≥2 catalogue items with right prices)
+- [ ] `POST /forge` with the Dapoer Nusantara recon spec returns a working chat URL in < 90 s (measure, record the number)
+- [ ] The Beat-1 meeting recording (DEMO_SCRIPT.md) produces a confirmable recon ForgeSpec: 2 outlets, 5 channels, assumed fee rates flagged for confirmation
+- [ ] Feeding `closing-DN1-16jul.txt` + `mutasi-BCA-17jul.csv` yields EXACTLY the verdicts in `test-data/recon/EXPECTED_OUTPUT.md` (QRIS/Grab/Transfer matched with fees 10.010/168.000/0, GoFood in-transit expecting ±1.000.000, the 50.000 credit RED)
+- [ ] "Yang 50 ribu itu apa?" NEVER yields an invented explanation, always the ask-the-admin line
 - [ ] The auto-PRD draft renders from the same spec
-- [ ] The agent quotes ONLY catalogue prices; an order of 2 Tumpeng Mini totals exactly Rp 300.000 in the reply
-- [ ] "I've transferred the money" never yields a confirmation, always the owner-verification line
-- [ ] An off-menu request yields the escalation line
 - [ ] Three sandboxes for three different specs run simultaneously (stretch)
 - [ ] Backup screen recording of the full arc exists before final pitches
 
