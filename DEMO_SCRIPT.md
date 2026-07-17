@@ -32,7 +32,7 @@ On the phone, in the sandbox chat, he asks exactly:
 2. **"Yang 50 ribu itu apa?"** → the agent says it will NOT guess: no closing counterpart, flagged for Mbak Sari. (This is the anti-hallucination moment; say the line "it refuses to invent an explanation, that is the product.")
 3. **"Kalau GoFood nggak masuk besok?"** → stays amber with expected amount, escalates if past H+2.
 
-Close: "Mbak Sari's two hours are now this chat. And this config file is the same format running our production clients today."
+Close: "Mbak Sari's two hours are now this chat. And here is the point: we did not build this bot today. It is a CLONE of our production reconciliation workflow, stamped with Pak Dharma's config by the Forge. The Forge is the product; the library is the moat."
 
 
 ## STAGE VERSION: the 2-minute cut (the real agenda allows 2 min, not 4)
