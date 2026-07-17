@@ -26,7 +26,7 @@ Confirm screen shows the extracted spec (channels, fee rates marked "assumed sta
 
 ## Beat 4 · Pak Dharma tests HIS agent (~90 seconds, the wow)
 
-On the phone, in the sandbox chat, he asks exactly:
+THE HANDOVER, played exactly like reality: the FDE says "coba langsung, Pak" and sends the link. Nura (as the prospect) opens it on the phone and types just "halo" - nothing else. The agent's reply is the wow: it greets him by name and company, names his own painpoint back at him, and gives the role-by-role panduan (baba's real structure). Let the audience read it for 3 seconds. THEN he uses it:
 
 1. **"Gimana kemarin?"** → the agent gives the one-line summary from `test-data/recon/EXPECTED_OUTPUT.md`: matched Rp 2.885.000 (net in Rp 2.706.990, fees Rp 178.010), GoFood Rp 1.250.000 in-transit expecting ±Rp 1.000.000 tomorrow, cash Rp 2.150.000 physical, and one Rp 50.000 credit it does not recognize.
 2. **"Yang 50 ribu itu apa?"** → the agent says it will NOT guess: no closing counterpart, flagged for Mbak Sari. (This is the anti-hallucination moment; say the line "it refuses to invent an explanation, that is the product.")

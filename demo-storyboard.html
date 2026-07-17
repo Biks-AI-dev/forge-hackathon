@@ -1,4 +1,4 @@
-<title>Biks Forge · Any Problem In, The Right AI Employee Out</title>
+<title>Biks Forge · The Prospect Says Halo</title>
 <style>
   :root {
     --paper:#FAF8F4; --ink:#1A1A1A; --muted:#5C5C5C; --hairline:#DEDBD4;
@@ -10,7 +10,7 @@
   * { box-sizing:border-box; }
   body { background:var(--paper); color:var(--ink); margin:0;
     font-family:"Segoe UI",-apple-system,Roboto,Helvetica,Arial,sans-serif; line-height:1.5; }
-  .page { max-width:900px; margin:0 auto; padding:40px 22px 64px; }
+  .page { max-width:760px; margin:0 auto; padding:40px 22px 64px; }
 
   .masthead { display:flex; justify-content:space-between; align-items:baseline;
     border-bottom:1px solid var(--ink); padding-bottom:10px; }
@@ -19,59 +19,46 @@
   .meta { font-size:12px; color:var(--muted); }
 
   h1 { font-size:27px; line-height:1.15; letter-spacing:-0.02em; margin:30px 0 8px; text-wrap:balance; }
-  .dek { font-size:15px; color:var(--muted); max-width:64ch; margin:0 0 30px; }
+  .dek { font-size:15px; color:var(--muted); max-width:62ch; margin:0 0 30px; }
 
   .stage { font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--accent);
-    font-weight:700; margin:34px 0 4px; }
-  .stagesub { font-size:14.5px; margin:0 0 14px; max-width:66ch; }
+    font-weight:700; margin:36px 0 4px; }
+  .stagesub { font-size:14.5px; margin:0 0 12px; max-width:64ch; }
   .stagesub b { color:var(--accent); }
 
-  .duo { display:flex; gap:16px; flex-wrap:wrap; }
-  .half { flex:1; min-width:300px; }
-  .tagA, .tagB { display:inline-block; font-size:10px; font-weight:700; letter-spacing:0.1em;
-    text-transform:uppercase; padding:2px 9px; border-radius:2px; margin-bottom:6px; }
-  .tagA { background:var(--red-tint); color:var(--red); }
-  .tagB { background:var(--blue-tint); color:var(--blue); }
-
   .screen { background:#fff; border:1px solid var(--hairline); border-radius:10px;
-    overflow:hidden; box-shadow:0 3px 14px rgba(26,26,26,.07); }
+    overflow:hidden; box-shadow:0 3px 14px rgba(26,26,26,.07); max-width:480px; }
   .screen-bar { font-size:11px; font-weight:700; padding:7px 12px; color:#fff; background:var(--accent); }
   .screen-bar small { font-weight:400; opacity:.85; }
   .screen .pad { padding:11px 13px; }
   .quoteline { font-size:12.5px; font-style:italic; color:var(--muted); }
 
-  /* router */
-  .lib { background:#fff; border:1px solid var(--hairline); border-radius:10px; padding:11px 14px;
-    max-width:560px; }
-  .librow { display:flex; justify-content:space-between; align-items:center; padding:6px 0;
+  .lib { background:#fff; border:1px solid var(--hairline); border-radius:10px; padding:10px 14px; max-width:480px; }
+  .librow { display:flex; justify-content:space-between; align-items:center; padding:5px 0;
     border-bottom:1px solid var(--hairline); font-size:13px; }
   .librow:last-child { border-bottom:none; }
   .librow .live { font-size:10px; color:var(--muted); }
-  .match { font-size:10px; font-weight:700; letter-spacing:0.08em; padding:2px 8px; border-radius:2px; }
-  .match.A { background:var(--red-tint); color:var(--red); }
-  .match.B { background:var(--blue-tint); color:var(--blue); }
+  .match { font-size:10px; font-weight:700; letter-spacing:0.08em; padding:2px 8px; border-radius:2px;
+    background:var(--red-tint); color:var(--red); }
   .dim { color:var(--muted); opacity:.55; }
 
-  table.spec { width:100%; border-collapse:collapse; font-size:11.5px; }
-  .spec th { text-align:left; font-size:9px; letter-spacing:0.1em; text-transform:uppercase;
-    color:var(--muted); padding:0 8px 4px 0; border-bottom:1px solid var(--ink); }
-  .spec td { padding:4px 8px 4px 0; border-bottom:1px solid var(--hairline); }
-  .chip { font-size:8.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase;
-    padding:1px 6px; border-radius:2px; background:var(--amber-tint); color:var(--amber); white-space:nowrap; }
+  .linkcard { background:var(--accent-tint); border:1px solid var(--accent); border-radius:10px;
+    padding:12px 16px; max-width:480px; font-size:14px; }
+  .linkcard code { font-family:Consolas,Menlo,monospace; font-size:12px; color:var(--accent); font-weight:700; }
 
-  .chat { padding:11px; display:flex; flex-direction:column; gap:6px; font-size:12px; background:#FBFAF7; }
-  .b { max-width:92%; padding:6px 10px; border-radius:9px; line-height:1.42; }
+  .chat { padding:11px; display:flex; flex-direction:column; gap:7px; font-size:12.5px; background:#FBFAF7; }
+  .b { max-width:94%; padding:7px 11px; border-radius:9px; line-height:1.5; }
   .cust { background:var(--accent-tint); align-self:flex-end; border-top-right-radius:3px; }
   .bot { background:#fff; border:1px solid var(--hairline); align-self:flex-start; border-top-left-radius:3px; }
-  .howto { border-left:3px solid var(--accent); }
-  .howtotag { font-size:9.5px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;
-    color:var(--accent); margin:0 0 2px 3px; }
-  .v { display:block; margin-top:2px; }
+  .v { display:block; margin-top:3px; }
+  .wow { outline:2px solid var(--accent); outline-offset:3px; }
   .money { outline:2px solid var(--red); outline-offset:2px; }
-  .guard { outline:2px solid var(--blue); outline-offset:2px; }
-  .callout { font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin:4px 0 0 3px; }
-  .callout.A { color:var(--red); }
-  .callout.B { color:var(--blue); }
+  .callout { font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; margin:5px 0 0 3px; }
+  .callout.g { color:var(--accent); }
+  .callout.r { color:var(--red); }
+
+  .flex { border-left:3px solid var(--blue); background:var(--blue-tint); border-radius:6px;
+    padding:11px 15px; font-size:13.5px; max-width:62ch; margin-top:14px; }
 
   .funnel { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:14px;
     font-size:13.5px; font-weight:650; }
@@ -81,7 +68,7 @@
   .funnel small { display:block; font-weight:400; font-size:10.5px; color:var(--muted); }
 
   .punch { background:var(--accent); color:#fff; padding:16px 20px; font-size:15.5px;
-    font-weight:600; line-height:1.5; max-width:640px; border-radius:6px; margin-top:30px; }
+    font-weight:600; line-height:1.5; max-width:620px; border-radius:6px; margin-top:32px; }
   .foot { margin-top:36px; padding-top:12px; border-top:1px solid var(--ink);
     font-size:12px; color:var(--muted); }
 </style>
@@ -90,121 +77,71 @@
 
   <div class="masthead">
     <div class="wordmark">biks<span>.</span>ai</div>
-    <div class="meta">The Forge · one machine, whatever story Nura tells</div>
+    <div class="meta">The demo · exactly like a real Nura client meeting</div>
   </div>
 
-  <h1>Nura tells ANY problem. The Forge picks the right workflow and clones it. Both paths, side by side.</h1>
-  <p class="dek">Red is Story A (reconciliation pain). Blue is Story B (order chaos). Nura chooses ON STAGE — the machine doesn't care, and that is the entire point. The team builds one pipeline and two clone templates.</p>
+  <h1>The prospect says "halo" — and the AI employee already knows them.</h1>
+  <p class="dek">This is the whole demo: a meeting becomes an AI employee, the LINK goes to the prospect, and message one proves it listened. Built exactly on the production baba pattern (real transcript below is the template).</p>
 
   <!-- STAGE 1 -->
-  <div class="stage">1 · The meeting — Nura improvises one of these (or anything else)</div>
-  <div class="duo">
-    <div class="half">
-      <span class="tagA">Story A · warung owner</span>
-      <div class="screen"><div class="pad quoteline">"Tiap pagi admin saya buka mutasi BCA, cocokin satu-satu sama closing SPG semalam. QRIS kepotong dikit, GoFood masuknya lusa, tiap hari ada selisih dan dia harus nebak-nebak. Dua-tiga jam, mas."</div></div>
-    </div>
-    <div class="half">
-      <span class="tagB">Story B · catering owner</span>
-      <div class="screen"><div class="pad quoteline">"Orderan masuk lewat WA semua. Malem-malem chat numpuk, admin salah catat alamat, bukti transfer harus dicek satu-satu, ada yang ngaku sudah bayar padahal belum. Saya takut salah kirim terus."</div></div>
-    </div>
-  </div>
+  <div class="stage">1 · The meeting, like every real Nura meeting</div>
+  <p class="stagesub">Company → what they do → the painpoint → what they want an AI employee to solve:</p>
+  <div class="screen"><div class="pad quoteline">"Kami Dapoer Nusantara, dua outlet di Denpasar. Yang bikin capek: tiap pagi admin saya, Mbak Sari, buka mutasi BCA, cocokin satu-satu sama closing SPG semalam. QRIS kepotong dikit, GoFood masuk lusa, tiap hari ada selisih. Dua-tiga jam tiap pagi. Saya cuma pengen ada yang bilang: ini cocok, ini masih jalan, ini tolong dicek."</div></div>
 
   <!-- STAGE 2 -->
-  <div class="stage">2 · The route — the Forge matches the pain to the production library</div>
-  <p class="stagesub">Same routing our live onboarding bot does today, extended to pick the clone template:</p>
+  <div class="stage">2 · The Forge builds, in minutes</div>
+  <p class="stagesub">Routes the pain to the production library, clones the matched workflow, stamps his config:</p>
   <div class="lib">
-    <div class="librow"><span>Sales &amp; Order</span><span class="live">live · 2 clients</span><span class="match B">← MATCHES STORY B</span></div>
-    <div class="librow"><span>Reconciliation</span><span class="live">live · 1 pilot</span><span class="match A">← MATCHES STORY A</span></div>
-    <div class="librow dim"><span>Stock / Inventory</span><span class="live">live</span><span></span></div>
-    <div class="librow dim"><span>Loyalty</span><span class="live">live</span><span></span></div>
-    <div class="librow dim"><span>Finance AP/AR</span><span class="live">live</span><span></span></div>
+    <div class="librow"><span>Reconciliation</span><span class="live">live · 1 pilot</span><span class="match">MATCHED · cloning</span></div>
+    <div class="librow dim"><span>Sales &amp; Order</span><span class="live">live · 2 clients</span><span></span></div>
+    <div class="librow dim"><span>Stock · Loyalty · Finance AP/AR</span><span class="live">live</span><span></span></div>
   </div>
 
   <!-- STAGE 3 -->
-  <div class="stage">3 · Clone + configure — same machine, different config stamped on</div>
-  <div class="duo">
-    <div class="half">
-      <span class="tagA">Story A → recon clone</span>
-      <div class="screen">
-        <div class="screen-bar">Confirm · Dapoer Nusantara <small>· BCA · 2 outlets</small></div>
-        <div class="pad">
-          <table class="spec">
-            <tr><th>Channel</th><th>Fee</th><th>Settle</th><th></th></tr>
-            <tr><td>QRIS</td><td>0,7%</td><td>H+1</td><td><span class="chip">asumsi</span></td></tr>
-            <tr><td>GoFood</td><td>20%</td><td>H+2</td><td><span class="chip">asumsi</span></td></tr>
-            <tr><td>GrabFood</td><td>20%</td><td>H+1</td><td><span class="chip">asumsi</span></td></tr>
-            <tr><td>Transfer · Cash</td><td>0% · —</td><td>H+0 · fisik</td><td></td></tr>
-          </table>
-        </div>
-      </div>
-    </div>
-    <div class="half">
-      <span class="tagB">Story B → sales clone</span>
-      <div class="screen">
-        <div class="screen-bar">Confirm · Sari's Catering <small>· transfer + bukti · kurir internal</small></div>
-        <div class="pad">
-          <table class="spec">
-            <tr><th>Item</th><th>Harga</th><th></th></tr>
-            <tr><td>Nasi Box Ayam Bakar</td><td>Rp 35.000</td><td></td></tr>
-            <tr><td>Tumpeng Mini</td><td>Rp 150.000</td><td></td></tr>
-            <tr><td>Aturan</td><td colspan="2">bayar = transfer + bukti, owner verifikasi</td></tr>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="stage">3 · The handover — the link goes to the PROSPECT</div>
+  <div class="linkcard">FDE: "Coba langsung, Pak." → sends <code>dapoer-nusantara.daytona…/chat</code> to Pak Dharma's phone. He opens it cold.</div>
 
   <!-- STAGE 4 -->
-  <div class="stage">4 · The forged AI employee — working immediately, and it introduces itself first</div>
-  <p class="stagesub">Every clone opens with a personalized <b>"how to use me"</b> (the exact pattern our production recon bot uses when it joins a client group), then starts doing the job:</p>
-  <div class="duo">
-    <div class="half">
-      <span class="tagA">A · dapoer-nusantara.daytona…/chat</span>
-      <div class="screen">
-        <div class="screen-bar">Nusa · Dapoer Nusantara <small>· recon</small></div>
-        <div class="chat">
-          <div class="howtotag">how to use me — first message</div>
-          <div class="b bot howto">Halo Pak Dharma, saya Nusa 🙌 Tiap pagi: kirim closing SPG semalam + mutasi BCA ke saya. Saya cocokkan, hitung biaya channel, dan tandai yang perlu dicek Mbak Sari. Coba sekarang?</div>
-          <div class="b cust">[closing + mutasi dikirim] Gimana kemarin?</div>
-          <div class="b bot">Dari omzet Rp 6.285.000:
-            <span class="v">✅ QRIS, GrabFood, Transfer cocok (biaya Rp 178.010 tercatat)</span>
-            <span class="v">🟡 GoFood Rp 1.250.000 normal H+1, besok ±Rp 1.000.000</span>
-            <span class="v">🔴 Kredit Rp 50.000 tidak dikenal</span></div>
-          <div class="b cust">Yang 50 ribu itu apa?</div>
-          <div class="b bot money">Jujur saya tidak tahu, dan saya tidak mau menebak. Sudah saya tandai untuk Mbak Sari.</div>
-          <div class="callout A">Refuses to invent an explanation</div>
-        </div>
-      </div>
-    </div>
-    <div class="half">
-      <span class="tagB">B · saris-catering.daytona…/chat</span>
-      <div class="screen">
-        <div class="screen-bar">Sari AI · Sari's Catering <small>· orders</small></div>
-        <div class="chat">
-          <div class="howtotag">how to use me — first message</div>
-          <div class="b bot howto">Halo! Saya asisten pesanan Sari's Catering 🙌 Kirim pesanan seperti biasa — saya catat lengkap, hitung total, dan cek pembayaran. Bu Sari yang konfirmasi akhir. Mau pesan apa?</div>
-          <div class="b cust">2 tumpeng mini buat Jumat</div>
-          <div class="b bot">2 × Tumpeng Mini = Rp 300.000. Kirim ke mana?</div>
-          <div class="b cust">Kebayoran. Transfer sudah ya 👍</div>
-          <div class="b bot guard">Bukti transfernya saya catat — Bu Sari verifikasi dulu ya, baru pesanan Jumat saya kunci.</div>
-          <div class="callout B">Never confirms an unverified payment</div>
-        </div>
-      </div>
+  <div class="stage">4 · The halo moment (the wow — let the room read it)</div>
+  <div class="screen">
+    <div class="screen-bar">Nusa · Dapoer Nusantara <small>· AI employee · online</small></div>
+    <div class="chat">
+      <div class="b cust">halo</div>
+      <div class="b bot wow">Halo Pak Dharma! 🙌 Aku Nusa — teman rekonsiliasi Dapoer Nusantara.
+        <span class="v">Aku tahu tiap pagi Mbak Sari habis 2–3 jam cocokin mutasi BCA sama closing SPG dari 2 outlet. Itu sekarang tugasku: baca closing &amp; mutasi, cocokin omset ↔️ uang masuk, dan cuma lapor kalau ada yang beneran perlu dicek.</span>
+        <span class="v">Cara pakai:</span>
+        <span class="v">👩‍🍳 <b>SPG</b> — kirim closing tiap akhir shift (foto struk atau ketik ringkasan). Aku baca → aku echo angkanya → balas "ya" → tercatat ✅</span>
+        <span class="v">💼 <b>Mbak Sari</b> — kirim file mutasi BCA tiap pagi. Aku cocokin (termasuk biaya QRIS 0,7%, komisi GoFood/Grab 20%, settle telat).</span>
+        <span class="v">Arti status: 🟢 cocok · 🟡 masih di perjalanan · 🔴 perlu dicek</span>
+        <span class="v">Mau coba sekarang? Kirim closing kemarin 👇</span></div>
+      <div class="callout g">It already knows him. Personalized panduan, exact production-baba structure</div>
+      <div class="b cust">[kirim closing + mutasi kemarin]</div>
+      <div class="b bot">Aku echo dulu ya: CASH 2.150.000 · QRIS 1.430.000 · GoFood 1.250.000 · GrabFood 840.000 · Transfer 615.000. Benar? Balas "ya" 👍</div>
+      <div class="b cust">ya</div>
+      <div class="b bot">Tercatat ✅ Hasil rekonsiliasi:
+        <span class="v">🟢 QRIS, GrabFood, Transfer cocok (biaya channel Rp 178.010 tercatat)</span>
+        <span class="v">🟡 GoFood Rp 1.250.000 normal H+1 — besok kutunggu ±Rp 1.000.000</span>
+        <span class="v">🔴 Ada kredit Rp 50.000 yang tidak cocok dengan closing manapun</span></div>
+      <div class="b cust">yang 50 ribu itu apa?</div>
+      <div class="b bot money">Jujur aku nggak tahu — dan aku nggak mau nebak. Sudah kutandai 🔴 untuk dicek Mbak Sari ya.</div>
+      <div class="callout r">Refuses to invent an explanation — the guardrail, live</div>
     </div>
   </div>
+
+  <div class="flex"><b>If Nura tells a different story</b> (order chaos, stock, anything): same 4 stages, the router matches a different library workflow, and the prospect's "halo" meets a different employee with a different panduan. The machine doesn't care — that's the product.</div>
 
   <!-- STAGE 5 -->
-  <div class="stage">5 · What happens after the demo — the actual funnel</div>
+  <div class="stage">5 · After the demo — the real funnel</div>
   <div class="funnel">
-    <div class="f now">TRY<small>customer tests the agent in its Daytona sandbox</small></div>
+    <div class="f now">TRY<small>prospect tests their employee in its Daytona sandbox</small></div>
     <div class="a">→</div>
-    <div class="f">PAY<small>it solves the pain, they pay the fee</small></div>
+    <div class="f">PAY<small>it solves the pain → they pay</small></div>
     <div class="a">→</div>
-    <div class="f">DEPLOY<small>only now: WhatsApp number, Cloud API, production</small></div>
+    <div class="f">DEPLOY<small>only then: WhatsApp number, production</small></div>
   </div>
 
-  <div class="punch">The close, whatever story he told: "I described a problem for ninety seconds. The Forge recognized it, picked the workflow we already run in production, and cloned it into an AI employee that introduced itself and started working. If I'd described a different problem, you'd be looking at a different employee. The Forge is the product. The library is the moat."</div>
+  <div class="punch">"He said one word: halo. And his AI employee greeted him by name, named his own problem back at him, and told his team exactly how to work with it — because it was forged from his meeting, on the workflow we already run in production. Try it, pay when it works, then we put it on WhatsApp."</div>
 
-  <div class="foot">Fixtures for path A: <b>test-data/recon/</b> (arithmetic verified) · path B totals recomputed in code (2 × 150.000 = 300.000) · gates in ATTACK_PLAN.md · repo: Biks-AI-dev/forge-hackathon</div>
+  <div class="foot">Panduan structure copied from the production baba transcript · fixtures: <b>test-data/recon/</b> · halo test in PRD acceptance criteria · repo: Biks-AI-dev/forge-hackathon</div>
 
 </div>
