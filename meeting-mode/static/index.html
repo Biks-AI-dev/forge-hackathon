@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Biks Forge — Meeting Mode</title>
+  <script type="module" crossorigin src="/static/assets/index-CLdWH1qe.js"></script>
+  <link rel="stylesheet" crossorigin href="/static/assets/index-9MSoD7bG.css">
+</head>
+<body>
+<main>
+
+  <div class="hero-card" id="hero-card">
+    <div class="hero-header">
+      <div class="hero-header-left">
+        <div class="mic-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+        </div>
+        <div style="min-width:0">
+          <div class="hero-title" id="hero-title">Meeting Mode</div>
+          <div class="hero-subtitle" id="hero-subtitle">Ready to record</div>
+        </div>
+      </div>
+      <div class="hero-timer-wrap">
+        <div class="hero-timer-label" id="hero-timer-label">elapsed</div>
+        <div class="hero-timer" id="hero-timer">00:00</div>
+      </div>
+    </div>
+
+    <div class="listen-panel">
+      <div class="listen-status-row">
+        <div class="waveform idle" id="waveform">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        </div>
+        <span class="listen-status-text" id="listen-status-text">idle</span>
+      </div>
+      <div class="listen-content placeholder" id="listen-content">Click record to start, or upload a finished recording below.</div>
+    </div>
+
+    <div class="hero-actions">
+      <button class="btn btn-primary" id="btn-record">🎙️ Record meeting audio</button>
+      <button class="btn btn-secondary" id="btn-stop" style="display:none">Stop</button>
+      <button class="btn btn-danger" id="btn-cancel" style="display:none">Cancel</button>
+      <button class="btn btn-secondary" id="btn-use-upload" style="display:none">Use an audio file instead</button>
+    </div>
+
+    <div id="audio-upload-wrap" style="display:none; margin-top:14px; border-top:1px solid var(--card-border); padding-top:14px">
+      <p class="hint" id="fallback-reason">Browser recording is unavailable — upload a finished recording instead.</p>
+      <input class="file-input" type="file" id="audio-upload" accept="audio/*">
+    </div>
+
+    <div id="playback-wrap" style="display:none; margin-top:14px">
+      <audio id="playback-audio" controls></audio>
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-secondary" id="btn-discard">Discard &amp; re-record</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="research-card">
+    <h3>Pre-meeting research (optional)</h3>
+    <p class="hint">Run this before the meeting starts — separate from recording, never blocks it.</p>
+    <div class="research-layout">
+      <div class="research-form">
+        <div class="row" style="margin-top:8px">
+          <input type="text" id="research-company" class="text-input" placeholder="Company name">
+          <input type="text" id="research-website" class="text-input" placeholder="Website URL">
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn-secondary" id="btn-research">Research</button>
+        </div>
+        <p class="hint" id="research-status"></p>
+      </div>
+      <div class="research-preview" id="research-preview">
+        <p class="hint" id="research-preview-empty">No research run yet.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Client files</h3>
+    <p class="hint" style="margin-top:0">PDF and/or Excel — at least one required. No notes field — everything comes from the audio and these files.</p>
+    <input class="file-input" type="file" id="client-files" multiple accept=".pdf,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+  </div>
+
+  <div class="card">
+    <button class="btn btn-primary btn-block" id="btn-submit" disabled>Forge from this meeting</button>
+    <ul class="steps" id="steps-list"></ul>
+  </div>
+
+  <div class="card" id="result-card" style="display:none"></div>
+
+</main>
+</body>
+</html>

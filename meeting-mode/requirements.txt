@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+python-multipart
+openpyxl
+pypdf
+faster-whisper

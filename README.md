@@ -17,6 +17,8 @@ Two front doors, one factory: Biks' production WhatsApp intake bot produces the 
 
 `PRD.md` — the full technical spec: components, the ForgeSpec contract, guardrails-in-code, day plan, acceptance criteria.
 
+`SETUP.md` — how to actually install and run it: venvs, `.env`, start order, smoke tests, troubleshooting.
+
 ## Rules
 
 - Keys in `.env` (see `.env.example`), never in git.

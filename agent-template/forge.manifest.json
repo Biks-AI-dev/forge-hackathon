@@ -1,0 +1,9 @@
+{
+  "start_command": "python3 server.py",
+  "install_command": null,
+  "port": 8000,
+  "health_path": "/health",
+  "health_timeout_s": 60,
+  "install_timeout_s": 120,
+  "env_passthrough": ["KIMI_API_KEY", "KIMI_BASE_URL"]
+}
