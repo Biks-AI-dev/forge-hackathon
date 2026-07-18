@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notula — AI Meeting Scribe</title>
+<style>
+  :root {
+    --bg: #0b0f17; --panel: #121826; --panel2: #0e1420; --border: #223047;
+    --text: #e6edf7; --muted: #7d8ba1; --accent: #7c5cff; --accent2: #00d4a6;
+    --danger: #ff5470; --warn: #ffb02e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+
+  header { display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1.2rem; border-bottom: 1px solid var(--border); background: var(--panel2); }
+  .logo { font-weight: 800; font-size: 1.15rem; letter-spacing: 0.3px; }
+  .logo span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { color: var(--muted); font-size: 0.75rem; }
+  .spacer { flex: 1; }
+
+  button {
+    font: inherit; font-size: 0.85rem; padding: 0.5rem 0.9rem; border-radius: 9px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text); transition: all 0.15s;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button.rec { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 700; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button.green { background: var(--accent2); border-color: var(--accent2); color: #04261d; font-weight: 700; }
+  .pill { padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.75rem; border: 1px solid var(--border); color: var(--muted); }
+  .pill.busy { color: var(--warn); border-color: var(--warn); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { opacity: 0.5; } }
+
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 1px; background: var(--border); min-height: 0; }
+  .col { background: var(--bg); display: flex; flex-direction: column; min-height: 0; }
+  .col-head { padding: 0.6rem 0.9rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; }
+  .col-body { flex: 1; overflow-y: auto; padding: 0.9rem; min-height: 0; }
+
+  /* transcript */
+  .utt { margin-bottom: 0.65rem; font-size: 0.88rem; line-height: 1.45; }
+  .utt .who { font-size: 0.7rem; font-weight: 700; color: var(--accent2); }
+  .utt.us .who { color: var(--accent); }
+  .interim { opacity: 0.5; font-style: italic; }
+
+  /* notes */
+  .note-sec { margin-bottom: 1rem; }
+  .note-sec h4 { margin: 0 0 0.4rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .note-sec ul { margin: 0; padding-left: 1.1rem; font-size: 0.86rem; line-height: 1.5; }
+  .summary-box { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent2); border-radius: 10px; padding: 0.7rem 0.9rem; font-size: 0.88rem; margin-bottom: 1rem; }
+
+  /* right column tabs */
+  .tabbtns { display: flex; gap: 0.4rem; }
+  .tabbtns button { padding: 0.3rem 0.8rem; font-size: 0.78rem; border-radius: 999px; }
+  .tabbtns button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #prd-view { font-size: 0.88rem; line-height: 1.6; }
+  #prd-view h1, #prd-view h2, #prd-view h3 { color: var(--accent2); margin: 1.1em 0 0.4em; }
+  #prd-view h1 { font-size: 1.2rem; } #prd-view h2 { font-size: 1.05rem; } #prd-view h3 { font-size: 0.95rem; }
+  #prd-view table { border-collapse: collapse; width: 100%; font-size: 0.82rem; margin: 0.5rem 0; }
+  #prd-view th, #prd-view td { border: 1px solid var(--border); padding: 0.35rem 0.5rem; text-align: left; }
+  #prd-view code { background: var(--panel); padding: 0.1rem 0.35rem; border-radius: 5px; }
+  iframe { width: 100%; height: 100%; border: none; background: #fff; border-radius: 10px; }
+  .empty { color: var(--muted); font-size: 0.86rem; text-align: center; margin-top: 3rem; }
+  .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--danger); color: #fff; padding: 0.6rem 1.1rem; border-radius: 10px; font-size: 0.85rem; display: none; max-width: 80vw; }
+  a { color: var(--accent2); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">📝 <span>Notula</span></div>
+    <div class="sub">live transcript → notes → PRD → prototype · Kimi ⚡ Nosana · Daytona</div>
+  </div>
+  <div class="spacer"></div>
+  <span id="st-notes" class="pill">idle</span>
+  <button id="btn-auto" class="pill" style="cursor:pointer;" title="Bots regenerate PRD + UI + deploy automatically while the client talks">🤖 Auto: ON</button>
+  <button id="btn-rec" class="primary">▶ Start Recording</button>
+  <button id="btn-forge" class="green" title="Run a full cycle now: notes → PRD + UI in parallel → deploy">⚡ Forge Now</button>
+  <button id="btn-reset" title="New meeting">↺</button>
+</header>
+
+<main>
+  <div class="col">
+    <div class="col-head">🎤 Transcript <span id="rec-ind"></span></div>
+    <div class="col-body" id="transcript"><div class="empty">Click ▶ Start Recording and just talk —<br>both sides of the conversation are captured.</div></div>
+  </div>
+
+  <div class="col">
+    <div class="col-head">🧠 Live Notes</div>
+    <div class="col-body" id="notes"><div class="empty">Key points appear automatically<br>as the conversation goes on.</div></div>
+  </div>
+
+  <div class="col">
+    <div class="col-head">
+      <div class="tabbtns">
+        <button data-tab="prd" class="active">📄 PRD</button>
+        <button data-tab="proto">🖥️ Prototype</button>
+      </div>
+      <div class="spacer"></div>
+      <a id="preview-link" href="#" target="_blank" style="font-size:0.75rem;display:none;">open in new tab ↗</a>
+    </div>
+    <div class="col-body" id="tab-prd"><div id="prd-view"><div class="empty">Click “Generate PRD” anytime —<br>the document is built from the meeting notes.</div></div></div>
+    <div class="col-body" id="tab-proto" style="display:none;"><div class="empty" id="proto-empty">Click “Generate UI” to build a prototype<br>from the client’s requirements.</div><iframe id="proto-frame" style="display:none;"></iframe></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let recording = false;
+let recog = null;
+let whisperMode = false; // set from /api/state — true when a Nosana Whisper endpoint is configured
+let mediaStream = null;
+let recorder = null;
+let recTimer = null;
+
+// ===== toast =====
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.style.display = "none"), 5000);
+}
+
+// ===== speech recognition (Web Speech API, en-US) =====
+// displayOnly: in hybrid mode Web Speech only paints the instant grey
+// interim text (perceived realtime); the authoritative final transcript
+// comes from Whisper on the Nosana GPU.
+function initRecog(displayOnly = false) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { if (!displayOnly) toast("This browser lacks the Web Speech API — use Chrome."); return null; }
+  const r = new SR();
+  r.lang = "en-US"; r.continuous = true; r.interimResults = true;
+  // Restart with backoff. On some machines recognition dies instantly when
+  // MediaRecorder holds the mic (hybrid mode) — the old unconditional
+  // restart-on-end became a tight loop that pegged the CPU and froze the
+  // laptop. Now: rapid deaths back off, and after 5 in a row we give up
+  // (interim display is a nice-to-have; Whisper still transcribes).
+  let lastStart = 0, rapidEnds = 0;
+  r.onstart = () => { lastStart = Date.now(); };
+  r.onresult = (e) => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const res = e.results[i];
+      if (res.isFinal) { if (!displayOnly) sendUtterance(res[0].transcript.trim()); }
+      else interim += res[0].transcript;
+    }
+    $("#interim") && $("#interim").remove();
+    if (interim) {
+      const div = document.createElement("div");
+      div.className = "utt interim"; div.id = "interim";
+      div.textContent = interim;
+      $("#transcript").appendChild(div);
+      $("#transcript").scrollTop = 1e9;
+    }
+  };
+  r.onerror = (e) => { if (!displayOnly && e.error !== "no-speech") toast("Mic error: " + e.error); };
+  r.onend = () => {
+    if (!recording) return;
+    if (Date.now() - lastStart < 2000) rapidEnds += 1; else rapidEnds = 0;
+    if (rapidEnds >= 5) { console.warn("speech recognition unstable on this machine — live interim display disabled"); return; }
+    setTimeout(() => { if (recording) try { r.start(); } catch {} }, rapidEnds ? 2500 : 300);
+  };
+  return r;
+}
+
+async function sendUtterance(text) {
+  if (!text) return;
+  addUtt(text);
+  try {
+    await fetch("/api/transcript", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+  } catch { toast("Failed to send transcript to server"); }
+}
+
+function addUtt(text) {
+  if ($("#transcript .empty")) $("#transcript").innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "utt";
+  const t = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  div.innerHTML = `<div class="who">${t}</div>${esc(text)}`;
+  $("#transcript").appendChild(div);
+  $("#transcript").scrollTop = 1e9;
+}
+
+// ===== Whisper mode: record real audio, transcribe on the Nosana GPU.
+// MediaRecorder is restarted every chunk so each blob is a complete webm
+// file (continuation chunks lack container headers and can't be decoded).
+const CHUNK_MS = 4000;
+
+async function startWhisperRec() {
+  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  whisperLoop();
+  // Hybrid: run Web Speech alongside purely for the instant interim display.
+  try { recog = initRecog(true); recog?.start(); } catch {}
+}
+
+function whisperLoop() {
+  recorder = new MediaRecorder(mediaStream, { mimeType: "audio/webm;codecs=opus" });
+  const chunks = [];
+  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  recorder.onstop = async () => {
+    const blob = new Blob(chunks, { type: "audio/webm" });
+    if (recording) whisperLoop(); // keep rolling while this chunk uploads
+    if (blob.size < 3000) return; // near-silence — skip the round trip
+    try {
+      const r = await fetch("/api/audio", {
+        method: "POST", headers: { "Content-Type": "audio/webm" }, body: blob,
+      });
+      const d = await r.json();
+      if (d.text) addUtt(d.text);
+      else if (d.error) toast(d.error);
+    } catch { toast("Failed to send audio to server"); }
+  };
+  recorder.start();
+  recTimer = setTimeout(() => recorder.state !== "inactive" && recorder.stop(), CHUNK_MS);
+}
+
+function stopWhisperRec() {
+  clearTimeout(recTimer);
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+  mediaStream?.getTracks().forEach((t) => t.stop());
+  mediaStream = null;
+  try { recog?.stop(); } catch {}
+  recog = null;
+  $("#interim")?.remove();
+}
+
+$("#btn-rec").addEventListener("click", async () => {
+  if (!recording) {
+    if (whisperMode) {
+      try { recording = true; await startWhisperRec(); }
+      catch (e) { recording = false; toast("Mic access failed: " + e.message); return; }
+    } else {
+      recog = recog || initRecog();
+      if (!recog) return;
+      recording = true; recog.start();
+    }
+    $("#btn-rec").textContent = "⏸ Stop"; $("#btn-rec").classList.add("rec"); $("#btn-rec").classList.remove("primary");
+    $("#rec-ind").textContent = whisperMode ? "● REC · Whisper@Nosana" : "● REC";
+    $("#rec-ind").style.color = "var(--danger)";
+  } else {
+    recording = false;
+    if (whisperMode) stopWhisperRec(); else recog.stop();
+    $("#btn-rec").textContent = "▶ Start Recording"; $("#btn-rec").classList.remove("rec"); $("#btn-rec").classList.add("primary");
+    $("#rec-ind").textContent = "";
+  }
+});
+
+// ===== actions =====
+async function post(url) {
+  const res = await fetch(url, { method: "POST" });
+  if (!res.ok) { const b = await res.json().catch(() => ({})); toast(b.error || ("Failed: " + url)); }
+  return res.ok;
+}
+$("#btn-forge").addEventListener("click", () => { $("#btn-forge").disabled = true; post("/api/forge").finally(() => ($("#btn-forge").disabled = false)); });
+
+let autoForge = true;
+$("#btn-auto").addEventListener("click", async () => {
+  autoForge = !autoForge;
+  await fetch("/api/autoforge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: autoForge }) });
+  renderAutoBtn();
+});
+function renderAutoBtn() {
+  $("#btn-auto").textContent = autoForge ? "🤖 Auto: ON" : "🤖 Auto: OFF";
+  $("#btn-auto").style.color = autoForge ? "var(--accent2)" : "var(--muted)";
+}
+$("#btn-reset").addEventListener("click", async () => { if (confirm("Start a new meeting? All current meeting data will be cleared.")) { await post("/api/reset"); location.reload(); } });
+
+// ===== tabs =====
+document.querySelectorAll(".tabbtns button").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".tabbtns button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    $("#tab-prd").style.display = b.dataset.tab === "prd" ? "" : "none";
+    $("#tab-proto").style.display = b.dataset.tab === "proto" ? "" : "none";
+  })
+);
+
+// ===== tiny markdown renderer (headers, bold, lists, tables) =====
+function md(src) {
+  const lines = String(src).split("\n");
+  let html = "", inUl = false, inTable = false;
+  const flush = () => { if (inUl) { html += "</ul>"; inUl = false; } if (inTable) { html += "</table>"; inTable = false; } };
+  for (const line of lines) {
+    const l = line.trim();
+    const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`(.+?)`/g, "<code>$1</code>");
+    if (/^#{1,3}\s/.test(l)) { flush(); const n = l.match(/^#+/)[0].length; html += `<h${n}>${inline(l.replace(/^#+\s*/, ""))}</h${n}>`; }
+    else if (/^[-*]\s/.test(l)) { if (!inUl) { flush(); html += "<ul>"; inUl = true; } html += `<li>${inline(l.replace(/^[-*]\s*/, ""))}</li>`; }
+    else if (/^\|/.test(l)) {
+      if (/^\|[\s\-|:]+\|$/.test(l)) continue; // separator row
+      if (!inTable) { flush(); html += "<table>"; inTable = true; }
+      const cells = l.split("|").slice(1, -1).map((c) => inline(c.trim()));
+      html += "<tr>" + cells.map((c) => `<td>${c}</td>`).join("") + "</tr>";
+    }
+    else if (l === "") { flush(); }
+    else { flush(); html += `<p>${inline(l)}</p>`; }
+  }
+  flush();
+  return html;
+}
+
+// ===== state polling =====
+let lastPrdLen = 0, lastUiAt = null, lastPreviewUrl = null, lastNotesJson = "";
+
+function renderNotes(n) {
+  if (!n.summary && !n.points?.length && !n.requirements?.length) return;
+  const j = JSON.stringify(n);
+  if (j === lastNotesJson) return; // unchanged — skip the DOM rebuild
+  lastNotesJson = j;
+  const sec = (title, items) =>
+    items?.length ? `<div class="note-sec"><h4>${title}</h4><ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul></div>` : "";
+  $("#notes").innerHTML =
+    (n.summary ? `<div class="summary-box">${esc(n.summary)}</div>` : "") +
+    sec("💡 Key points", n.points) +
+    sec("📌 Requirements", n.requirements) +
+    sec("✅ Action items", n.action_items) +
+    sec("🤝 Decisions", n.decisions);
+}
+
+async function poll() {
+  try {
+    const s = await (await fetch("/api/state")).json();
+    whisperMode = !!s.whisperConfigured;
+    autoForge = !!s.autoForge; renderAutoBtn();
+    renderNotes(s.notes || {});
+    // Parallel bots: show everything that's running right now
+    const active = [
+      s.busy.notes && "✍️ notes",
+      s.busy.prd && "📄 PRD",
+      s.busy.ui && "🎨 UI",
+      s.busy.deploy && "🚀 deploy",
+    ].filter(Boolean);
+    $("#st-notes").textContent = active.length ? active.join(" · ") + " ..." : "idle";
+    $("#st-notes").classList.toggle("busy", active.length > 0);
+
+    if (s.prdLen && s.prdLen !== lastPrdLen) {
+      lastPrdLen = s.prdLen;
+      const prdText = await (await fetch("/api/prd")).text();
+      $("#prd-view").innerHTML = md(prdText);
+    }
+
+    const url = s.previewUrl || (s.uiLen ? "/preview" : null);
+    if (url && (url !== lastPreviewUrl || s.uiLen !== lastUiAt)) {
+      lastPreviewUrl = url; lastUiAt = s.uiLen;
+      $("#proto-empty").style.display = "none";
+      const f = $("#proto-frame");
+      f.style.display = "block";
+      f.src = url + (url === "/preview" ? "?t=" + Date.now() : "");
+      const a = $("#preview-link");
+      a.href = url; a.style.display = "inline";
+    }
+    if (s.lastError) toast(s.lastError);
+  } catch {}
+}
+setInterval(poll, 2500);
+poll();
+</script>
+</body>
+</html>
