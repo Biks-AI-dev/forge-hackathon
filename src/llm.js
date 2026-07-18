@@ -1,4 +1,5 @@
 import { config } from "./config.js";
+import { FORGE_PRD_SYSTEM_PROMPT } from "./prd-template.js";
 
 // Generation can legitimately take a while on a GPU endpoint (full PRD or a
 // complete UI file), so the timeout is generous — callers stream progress to
@@ -86,20 +87,17 @@ export async function updateNotes(currentNotes, newChunk) {
   return JSON.parse(stripFence(raw));
 }
 
-/** Full PRD in markdown, built from the structured notes + raw transcript tail. */
+/**
+ * Full PRD in markdown following the Biks Forge format (8 sections: decisions,
+ * experience walkthrough, architecture pipeline, brief customer-language table,
+ * build plan, cut list, risks & fallbacks, file map). Built from the structured
+ * notes + raw transcript tail. The system prompt lives in prd-template.js so it
+ * can be reviewed and revised independently of the LLM client.
+ */
 export async function generatePRD(notes, transcriptTail) {
   return chat(
     [
-      {
-        role: "system",
-        content:
-          "You are a senior product manager. From the client meeting notes below, write a complete PRD " +
-          "(Product Requirements Document) in English, markdown format: Executive Summary, Background & " +
-          "Problem, Goals & Success Metrics, User Personas, Features & Requirements (MoSCoW priority table), " +
-          "Key User Flows, MVP Scope vs Later, Risks & Assumptions, Rough Timeline. Be concrete and " +
-          "actionable — where a detail wasn't discussed in the meeting, mark it '(needs confirmation)' " +
-          "instead of making it up.",
-      },
+      { role: "system", content: FORGE_PRD_SYSTEM_PROMPT },
       {
         role: "user",
         content:
@@ -107,9 +105,10 @@ export async function generatePRD(notes, transcriptTail) {
           `Latest transcript excerpt (extra context):\n${transcriptTail}`,
       },
     ],
-    // Smart model + generous budget: thinking models spend tokens reasoning
-    // before the document comes out.
-    { temperature: 0.4, model: config.kimiSmartModel, maxTokens: 12000, timeoutMs: 240_000 }
+    // The Forge PRD template produces a longer document than the generic one
+    // (ASCII diagrams, multi-column tables, screen-by-screen walkthrough).
+    // 20k tokens gives the thinking model room to reason + output the full doc.
+    { temperature: 0.4, model: config.kimiSmartModel, maxTokens: 20000, timeoutMs: 300_000 }
   );
 }
 

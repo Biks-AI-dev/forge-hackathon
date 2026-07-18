@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>biks.forge — meeting → agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper:#FAF7F1; --paper-2:#F3EEE5; --ink:#161512; --muted:#6E6A61; --hair:#E2DCCE;
+    --teal:#0F766E; --teal-deep:#0A5B55; --teal-tint:#E4F0EE; --teal-glow:rgba(15,118,110,.25);
+    --coral:#C2492E; --coral-tint:#F8E9E4; --amber:#B45309; --amber-tint:#FAEFDC;
+    --green:#2E7D32; --wa-bg:#EFE7DB; --wa-out:#DDF3D4;
+    --serif:"Fraunces",serif; --sans:"Instrument Sans",sans-serif; --mono:"IBM Plex Mono",monospace;
+  }
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; overflow:hidden; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans);
+    background-image:radial-gradient(ellipse 90% 60% at 70% -10%, rgba(15,118,110,.06), transparent 60%); }
+
+  /* ---------- calendar (front page) ---------- */
+  .cal { height:100%; display:flex; flex-direction:column; background:#fff; color:#3c4043; }
+  .gbar { height:64px; display:flex; align-items:center; gap:14px; padding:0 18px; border-bottom:1px solid #dadce0; }
+  .gburger { display:flex; flex-direction:column; gap:4px; padding:10px; cursor:pointer; }
+  .gburger span { width:18px; height:2px; background:#5f6368; }
+  .glogo { display:flex; align-items:center; gap:9px; font-size:21px; color:#3c4043; }
+  .gdate { width:34px; height:34px; border:2px solid #1a73e8; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gdate b { font-size:14px; color:#1a73e8; line-height:1; }
+  .gdate small { font-size:7px; color:#1a73e8; letter-spacing:.05em; }
+  .gtoday { border:1px solid #dadce0; background:#fff; border-radius:5px; padding:8px 16px; font-size:14px; color:#3c4043; }
+  .gnav { border:none; background:none; font-size:17px; color:#5f6368; padding:6px 9px; border-radius:50%; }
+  .gnav:hover { background:#f1f3f4; }
+  .gmonth { font-size:21px; font-weight:400; color:#3c4043; }
+  .gview { margin-left:auto; border:1px solid #dadce0; border-radius:5px; padding:8px 14px; font-size:14px; color:#3c4043; background:#fff; }
+  .calbody { flex:1; display:flex; min-height:0; }
+  .gside { width:238px; padding:14px 12px; border-right:1px solid #f1f3f4; }
+  .gcreate { display:inline-flex; align-items:center; gap:10px; background:#fff; border:none; border-radius:24px; padding:13px 22px 13px 15px;
+    font-size:14px; font-weight:500; color:#3c4043; box-shadow:0 1px 3px rgba(0,0,0,.25); margin-bottom:18px; }
+  .gcreate .plus { font-size:20px; background:linear-gradient(45deg,#1a73e8,#ea4335,#fbbc04,#34a853); -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:700; }
+  .mini { font-size:10.5px; }
+  .mini .mtitle { font-size:13px; font-weight:500; margin:0 0 8px 6px; }
+  .mini table { border-collapse:collapse; width:100%; text-align:center; }
+  .mini th { color:#70757a; font-weight:500; padding:3px; font-size:9.5px; }
+  .mini td { padding:4px 2px; color:#3c4043; cursor:pointer; border-radius:50%; }
+  .mini td.dim { color:#b8bcc1; }
+  .mini td.sel { background:#1a73e8; color:#fff; font-weight:600; }
+  .gmain { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .dhead { display:flex; border-bottom:1px solid #dadce0; padding-left:56px; }
+  .dcol { flex:1; text-align:center; padding:8px 0 10px; }
+  .dcol small { display:block; font-size:10.5px; color:#70757a; letter-spacing:.08em; }
+  .dcol .num { font-size:22px; color:#3c4043; width:40px; height:40px; line-height:40px; margin:3px auto 0; border-radius:50%; }
+  .dcol.today .num { background:#1a73e8; color:#fff; }
+  .allday { display:flex; padding-left:56px; border-bottom:1px solid #dadce0; min-height:26px; }
+  .adcol { flex:1; padding:2px 4px; }
+  .adchip { background:#f6bf26; color:#3c4043; font-size:11px; font-weight:500; border-radius:4px; padding:3px 8px; }
+  .ggrid { flex:1; overflow-y:auto; position:relative; display:flex; }
+  .gutter { width:56px; flex:none; }
+  .gutter div { height:52px; font-size:9.5px; color:#70757a; text-align:right; padding-right:8px; transform:translateY(-5px); }
+  .gcols { flex:1; display:flex; position:relative;
+    background:linear-gradient(#dadce0 1px, transparent 1px); background-size:100% 52px; }
+  .gday { flex:1; border-left:1px solid #dadce0; position:relative; }
+  .gev { position:absolute; left:3px; right:5px; border-radius:5px; padding:5px 8px; font-size:11.5px; font-weight:500;
+    color:#fff; line-height:1.35; cursor:pointer; overflow:hidden; }
+  .gev small { font-weight:400; opacity:.9; display:block; }
+  .gev.main-ev { background:var(--teal); box-shadow:0 1px 4px rgba(15,118,110,.4); outline:0 solid var(--teal-glow); animation:ready 1.8s infinite; }
+  .gev.gray { background:#7986cb; } .gev.green { background:#33b679; } .gev.pale { background:#d2e3fc; color:#1967d2; }
+  .nowline { position:absolute; left:0; right:0; height:2px; background:#ea4335; z-index:3; }
+  .nowline::before { content:""; position:absolute; left:-6px; top:-5px; width:12px; height:12px; border-radius:50%; background:#ea4335; }
+  /* event popover */
+  .pop { position:fixed; right:290px; top:120px; width:430px; background:#fff; border-radius:12px; z-index:20;
+    box-shadow:0 6px 26px rgba(0,0,0,.28); padding:20px 22px; display:none; color:#3c4043; }
+  .pop .close { position:absolute; right:12px; top:10px; border:none; background:none; font-size:17px; color:#5f6368; }
+  .pop h3 { display:flex; align-items:center; gap:11px; font-size:19px; font-weight:500; margin-bottom:3px; }
+  .pop h3 i { width:15px; height:15px; border-radius:4px; background:var(--teal); flex:none; }
+  .pop .when { font-size:13.5px; color:#5f6368; margin-left:26px; margin-bottom:12px; }
+  .prow { display:flex; gap:11px; font-size:13px; margin-bottom:8px; align-items:baseline; }
+  .prow .ic { width:17px; text-align:center; flex:none; }
+  .prow a { color:#1a73e8; text-decoration:none; }
+  .oxy { margin-top:13px; border:1px solid var(--hair); border-radius:9px; padding:12px 14px; background:var(--paper); }
+  .oxy .otitle { font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; color:var(--teal); margin-bottom:8px; }
+  .oxy ul { list-style:none; }
+  .oxy li { font-size:12.5px; line-height:1.55; padding-left:16px; position:relative; margin-bottom:4px; }
+  .oxy li::before { content:"▸"; position:absolute; left:0; color:var(--teal); }
+  .oxy .comp { margin-top:7px; padding-top:7px; border-top:1px dashed var(--hair); font-size:12px; color:var(--muted); }
+  .startbtn { margin-top:15px; width:100%; background:var(--teal); color:#fff; border:none; border-radius:8px;
+    padding:13px; font-size:14.5px; font-weight:600; letter-spacing:.02em; }
+  .startbtn:hover { background:var(--teal-deep); }
+
+  /* ---------- top bar ---------- */
+  .bar { height:58px; display:flex; align-items:center; gap:18px; padding:0 20px;
+    border-bottom:1px solid var(--ink); background:var(--paper); position:relative; z-index:5; }
+  .wordmark { font-family:var(--serif); font-weight:700; font-size:21px; letter-spacing:-.02em; }
+  .wordmark em { font-style:normal; color:var(--teal); }
+  .crumb { font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:.04em; }
+  .crumb b { color:var(--ink); font-weight:500; }
+  .bar .spacer { flex:1; }
+  .pill { display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11px;
+    border:1px solid var(--hair); border-radius:999px; padding:6px 12px; color:var(--muted); background:#fff; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#B9B4A8; }
+  .rec .dot { background:var(--coral); animation:pulse 1.1s infinite; }
+  .rec { color:var(--coral); border-color:var(--coral); }
+  @keyframes pulse { 50% { opacity:.25; } }
+  button { font-family:var(--sans); cursor:pointer; }
+  .btn { border:1px solid var(--ink); background:#fff; color:var(--ink); border-radius:8px;
+    padding:9px 16px; font-size:13.5px; font-weight:600; transition:transform .12s ease, box-shadow .12s ease; }
+  .btn:hover { transform:translateY(-1px); }
+  .btn.play { background:var(--ink); color:var(--paper); }
+  .btn.forge { background:var(--teal); border-color:var(--teal); color:#fff; letter-spacing:.02em;
+    box-shadow:0 0 0 0 var(--teal-glow); }
+  .btn.forge:not(:disabled) { animation:ready 1.6s infinite; }
+  @keyframes ready { 50% { box-shadow:0 0 0 9px transparent; } }
+  .btn:disabled { opacity:.35; cursor:default; animation:none; transform:none; }
+
+  /* ---------- panes ---------- */
+  .cols { display:grid; grid-template-columns: 300px 1fr 1.25fr; height:calc(100vh - 58px); }
+  .pane { border-right:1px solid var(--hair); display:flex; flex-direction:column; min-width:0; }
+  .pane:last-child { border-right:none; }
+  .phead { padding:13px 18px 11px; display:flex; align-items:baseline; gap:10px; border-bottom:1px solid var(--hair); }
+  .phead h2 { font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.18em; color:var(--muted); }
+  .phead .tag { font-family:var(--mono); font-size:10px; color:var(--teal); margin-left:auto; }
+  .pbody { flex:1; overflow-y:auto; padding:16px 18px; scroll-behavior:smooth; }
+
+  /* transcript */
+  .tline { margin-bottom:14px; opacity:0; transform:translateY(6px); animation:land .4s ease forwards; }
+  @keyframes land { to { opacity:1; transform:none; } }
+  .tmeta { font-family:var(--mono); font-size:10px; color:var(--muted); display:flex; gap:8px; margin-bottom:3px; }
+  .tmeta .who { color:var(--teal); font-weight:500; }
+  .tmeta .who.client { color:var(--amber); }
+  .ttext { font-size:13px; line-height:1.55; }
+  .hint { color:var(--muted); font-size:12.5px; line-height:1.6; padding:8px 0; }
+
+  /* ---------- brief (editorial) ---------- */
+  .brief { max-width:520px; }
+  .brief .kicker { font-family:var(--mono); font-size:10px; letter-spacing:.22em; color:var(--teal); margin-bottom:6px; }
+  .brief h1 { font-family:var(--serif); font-size:30px; font-weight:600; letter-spacing:-.02em; line-height:1.08; margin-bottom:2px; }
+  .brief .sub { font-size:13px; color:var(--muted); margin-bottom:18px; }
+  .bsec { margin-bottom:16px; opacity:0; transform:translateY(8px); }
+  .bsec.on { animation:land .5s ease forwards; }
+  .bsec h3 { font-family:var(--serif); font-size:15px; font-weight:700; margin-bottom:4px; }
+  .bsec p { font-size:13.5px; line-height:1.6; }
+  .bsec p .hl { background:linear-gradient(transparent 62%, var(--teal-tint) 0); font-weight:600; }
+  .route { display:inline-flex; align-items:center; gap:8px; border:1.5px solid var(--teal); color:var(--teal-deep);
+    background:var(--teal-tint); font-family:var(--mono); font-size:11.5px; font-weight:500; border-radius:6px; padding:7px 12px; }
+  .route small { color:var(--muted); }
+  .glist { list-style:none; }
+  .glist li { font-size:13px; padding:5px 0 5px 22px; position:relative; }
+  .glist li::before { content:"✕"; position:absolute; left:2px; color:var(--coral); font-weight:700; font-size:11px; top:7px; }
+  .brief .waiting { border:1.5px dashed var(--hair); border-radius:10px; padding:26px 18px; text-align:center;
+    color:var(--muted); font-size:12.5px; line-height:1.7; }
+  .shimmer { display:inline-block; font-family:var(--mono); font-size:10.5px; color:var(--teal);
+    letter-spacing:.14em; }
+  .shimmer::after { content:"…"; animation:dots 1.2s steps(4) infinite; }
+  @keyframes dots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} }
+
+  /* ---------- results pane ---------- */
+  .tabs { display:flex; gap:6px; padding:12px 18px 0; }
+  .tab { font-size:13px; font-weight:600; border:1px solid var(--hair); border-bottom:none; background:var(--paper-2);
+    color:var(--muted); border-radius:9px 9px 0 0; padding:9px 16px; }
+  .tab.on { background:#fff; color:var(--ink); border-color:var(--ink); position:relative; }
+  .tab.on::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:#fff; }
+  .tab:disabled { opacity:.4; }
+  .stage { flex:1; border-top:1px solid var(--ink); background:#fff; overflow:hidden; display:flex; flex-direction:column; }
+
+  /* workflow */
+  .flowwrap { flex:1; overflow:auto; padding:34px 26px; background:
+    linear-gradient(var(--hair) 1px, transparent 1px), linear-gradient(90deg, var(--hair) 1px, transparent 1px);
+    background-size:28px 28px; background-position:center; }
+  .flowtitle { font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; color:var(--muted); margin-bottom:22px; }
+  .flow { display:flex; align-items:stretch; gap:0; }
+  .fcol { display:flex; flex-direction:column; gap:12px; justify-content:center; }
+  .fnode { border:1.5px solid var(--ink); background:var(--paper); border-radius:10px; padding:10px 12px; width:122px;
+    opacity:0; transform:scale(.92); box-shadow:3px 3px 0 var(--paper-2); }
+  .fnode.on { animation:pop .35s ease forwards; }
+  @keyframes pop { to { opacity:1; transform:none; } }
+  .fnode b { display:block; font-size:13px; }
+  .fnode span { font-size:11px; color:var(--muted); line-height:1.4; display:block; margin-top:2px; }
+  .fnode.teal { border-color:var(--teal); background:var(--teal-tint); box-shadow:3px 3px 0 rgba(15,118,110,.15); }
+  .fnode.teal b { color:var(--teal-deep); }
+  .fnode.flag { border-color:var(--coral); background:var(--coral-tint); }
+  .fnode.flag b { color:var(--coral); }
+  .farrow { width:22px; align-self:center; height:2px; background:var(--ink); position:relative; opacity:0; flex:none; }
+  .farrow.on { animation:grow .3s ease forwards; }
+  @keyframes grow { from { transform:scaleX(0);} to { opacity:1; transform:none; } }
+  .farrow::after { content:""; position:absolute; right:-1px; top:-4px; border:5px solid transparent; border-left-color:var(--ink); }
+  .confirmrow { padding:14px 26px; border-top:1px solid var(--hair); display:flex; align-items:center; gap:12px;
+    font-size:13px; color:var(--muted); }
+  .confirmrow .btn { font-size:12.5px; padding:7px 13px; }
+
+  /* boot log */
+  .boot { flex:1; padding:30px; font-family:var(--mono); font-size:12.5px; background:var(--ink); color:#D8D4C8; }
+  .boot .line { margin-bottom:9px; opacity:0; animation:land .3s forwards; }
+  .boot .ok { color:#5CC8A8; }
+  .boot .big { color:#fff; font-size:15px; }
+  .timer { font-size:44px; font-family:var(--mono); color:#5CC8A8; letter-spacing:.02em; margin:14px 0; }
+
+  /* ---------- whatsapp chat ---------- */
+  .phone { flex:1; display:flex; flex-direction:column; background:var(--wa-bg); min-height:0;
+    background-image:radial-gradient(rgba(22,21,18,.045) 1.1px, transparent 1.1px); background-size:17px 17px; }
+  .wahead { background:var(--teal); color:#fff; padding:11px 16px; display:flex; align-items:center; gap:11px; }
+  .avatar { width:34px; height:34px; border-radius:50%; background:#fff; color:var(--teal); font-weight:700;
+    display:flex; align-items:center; justify-content:center; font-family:var(--serif); font-size:16px; }
+  .wahead b { font-size:14.5px; display:block; }
+  .wahead small { font-size:11px; opacity:.85; }
+  .urlchip { margin-left:auto; font-family:var(--mono); font-size:10px; background:rgba(255,255,255,.16);
+    padding:5px 9px; border-radius:6px; }
+  .chat { flex:1; overflow-y:auto; padding:16px 14px; display:flex; flex-direction:column; gap:8px; scroll-behavior:smooth; }
+  .msg { max-width:82%; padding:8px 12px; border-radius:10px; font-size:13.5px; line-height:1.55;
+    box-shadow:0 1px 1px rgba(0,0,0,.08); opacity:0; animation:land .3s forwards; position:relative; }
+  .msg.in { background:#fff; align-self:flex-start; border-top-left-radius:3px; }
+  .msg.out { background:var(--wa-out); align-self:flex-end; border-top-right-radius:3px; }
+  .msg .time { font-size:9.5px; color:var(--muted); text-align:right; margin-top:3px; font-family:var(--mono); }
+  .msg .v { display:block; margin-top:5px; }
+  .msg.wow { outline:2.5px solid var(--teal); outline-offset:3px; }
+  .msg.refuse { outline:2.5px solid var(--coral); outline-offset:3px; }
+  .filecard { display:flex; gap:9px; align-items:center; background:rgba(15,118,110,.08); border-radius:8px; padding:8px 10px; font-size:12.5px; }
+  .filecard .fico { font-size:19px; }
+  .verdict { border-collapse:collapse; margin-top:6px; width:100%; font-size:12.5px; }
+  .verdict td { padding:4px 8px 4px 0; border-bottom:1px dashed var(--hair); font-family:var(--mono); font-size:11.5px; }
+  .verdict tr:last-child td { border-bottom:none; }
+  .verdict .amt { text-align:right; }
+  .typing { align-self:flex-start; background:#fff; border-radius:10px; padding:11px 16px; box-shadow:0 1px 1px rgba(0,0,0,.08); }
+  .typing i { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--muted); margin:0 1.5px;
+    animation:bnc 1s infinite; }
+  .typing i:nth-child(2){ animation-delay:.15s } .typing i:nth-child(3){ animation-delay:.3s }
+  @keyframes bnc { 40% { transform:translateY(-5px); } }
+  .sys { align-self:center; background:var(--paper-2); border:1px solid var(--hair); border-radius:999px;
+    font-family:var(--mono); font-size:10.5px; color:var(--muted); padding:5px 13px; opacity:0; animation:land .3s forwards; }
+  .sys b { color:var(--teal); font-weight:500; }
+  .chips { display:flex; gap:8px; padding:8px 12px; flex-wrap:wrap; background:rgba(255,255,255,.6); border-top:1px solid var(--hair); }
+  .chip { border:1px solid var(--teal); color:var(--teal-deep); background:#fff; border-radius:999px;
+    font-size:12px; font-weight:600; padding:6px 13px; }
+  .chip:hover { background:var(--teal-tint); }
+  .warow { display:flex; gap:9px; padding:10px 12px; background:var(--paper-2); }
+  .warow input { flex:1; border:1px solid var(--hair); border-radius:999px; padding:10px 16px; font-size:13.5px;
+    font-family:var(--sans); background:#fff; outline:none; }
+  .warow input:focus { border-color:var(--teal); }
+  .send { width:42px; height:42px; border-radius:50%; border:none; background:var(--teal); color:#fff; font-size:16px; }
+
+  .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    color:var(--muted); font-size:13px; text-align:center; padding:30px; }
+  .empty .big { font-family:var(--serif); font-size:19px; color:var(--ink); }
+</style>
+</head>
+<body>
+
+<!-- ============ FRONT PAGE: calendar ============ -->
+<div class="cal" id="calView">
+  <div class="gbar">
+    <div class="gburger"><span></span><span></span><span></span></div>
+    <div class="glogo"><div class="gdate"><small>JUL</small><b>18</b></div> Calendar</div>
+    <button class="gtoday">Today</button>
+    <button class="gnav">‹</button><button class="gnav">›</button>
+    <span class="gmonth">July 2026</span>
+    <button class="gview">Week ▾</button>
+  </div>
+  <div class="calbody">
+    <div class="gside">
+      <button class="gcreate"><span class="plus">＋</span> Create</button>
+      <div class="mini">
+        <div class="mtitle">July 2026</div>
+        <table>
+          <tr><th>S</th><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th></tr>
+          <tr><td class="dim">28</td><td class="dim">29</td><td class="dim">30</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>
+          <tr><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td><td>11</td></tr>
+          <tr><td>12</td><td>13</td><td>14</td><td>15</td><td>16</td><td>17</td><td class="sel">18</td></tr>
+          <tr><td>19</td><td>20</td><td>21</td><td>22</td><td>23</td><td>24</td><td>25</td></tr>
+          <tr><td>26</td><td>27</td><td>28</td><td>29</td><td>30</td><td>31</td><td class="dim">1</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="gmain">
+      <div class="dhead">
+        <div class="dcol"><small>SUN</small><div class="num">12</div></div>
+        <div class="dcol"><small>MON</small><div class="num">13</div></div>
+        <div class="dcol"><small>TUE</small><div class="num">14</div></div>
+        <div class="dcol"><small>WED</small><div class="num">15</div></div>
+        <div class="dcol"><small>THU</small><div class="num">16</div></div>
+        <div class="dcol"><small>FRI</small><div class="num">17</div></div>
+        <div class="dcol today"><small>SAT</small><div class="num">18</div></div>
+      </div>
+      <div class="allday">
+        <div class="adcol"></div><div class="adcol"></div><div class="adcol"></div><div class="adcol"></div>
+        <div class="adcol"></div><div class="adcol"></div>
+        <div class="adcol"><span class="adchip">Daytona HackSprint SG</span></div>
+      </div>
+      <div class="ggrid">
+        <div class="gutter">
+          <div></div><div>9 AM</div><div>10 AM</div><div>11 AM</div><div>12 PM</div>
+          <div>1 PM</div><div>2 PM</div><div>3 PM</div><div>4 PM</div><div>5 PM</div>
+        </div>
+        <div class="gcols">
+          <div class="gday"></div>
+          <div class="gday"><div class="gev pale" style="top:57px;height:44px">Standup</div></div>
+          <div class="gday"><div class="gev pale" style="top:213px;height:70px">Investor sync</div></div>
+          <div class="gday"><div class="gev pale" style="top:57px;height:44px">Standup</div></div>
+          <div class="gday"><div class="gev green" style="top:265px;height:44px">Lunch — Tracy</div></div>
+          <div class="gday"><div class="gev pale" style="top:57px;height:44px">Standup</div><div class="gev gray" style="top:427px;height:70px">Pitch rehearsal</div></div>
+          <div class="gday">
+            <div class="nowline" style="top:355px"></div>
+            <div class="gev main-ev" style="top:369px;height:96px" onclick="openEvent()">
+              Bali Banana — discovery meeting
+              <small>3:00 – 4:00 PM · Pak Dharma</small>
+              <small>balibanana.id</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- event popover -->
+  <div class="pop" id="evPop">
+    <button class="close" onclick="closeEvent()">✕</button>
+    <h3><i></i>Bali Banana — discovery meeting</h3>
+    <div class="when">Saturday, 18 July · 3:00 – 4:00 PM</div>
+    <div class="prow"><span class="ic">👤</span><span><b>Pak Dharma</b> — owner, Bali Banana · <b>Nura</b> — Biks.AI</span></div>
+    <div class="prow"><span class="ic">🔗</span><a href="#" onclick="return false">balibanana.id</a> <span style="color:#70757a">· landing page</span></div>
+    <div class="prow"><span class="ic">📍</span><span>Denpasar, Bali</span></div>
+    <div class="oxy">
+      <div class="otitle">PRE-MEETING RESEARCH · OXYLABS · SCRAPED 07:30</div>
+      <ul>
+        <li><b>Premium banana desserts</b> — 2 outlets (Dewi Sri, Sunset Rd), est. 2021</li>
+        <li>Sells on <b>GoFood 4.8★</b> (2.1k ratings) · GrabFood · QRIS in store · IG 12.4k</li>
+        <li>Price range Rp 25–55k · ~40 SKUs · opens 10:00–22:00, two shifts</li>
+        <li>Hiring post (May): <b>"admin keuangan"</b> — back-office pain visible publicly</li>
+      </ul>
+      <div class="comp"><b>Competitors:</b> Sang Pisang (JKT franchise, 30+ outlets) · Pisang Nugget Bali (mid-range) — neither automates daily reconciliation.</div>
+    </div>
+    <button class="startbtn" onclick="startMeeting()">▶ Start meeting & record</button>
+  </div>
+</div>
+
+<!-- ============ CONSOLE ============ -->
+<div id="consoleView" style="display:none; height:100%">
+<div class="bar">
+  <div class="wordmark">biks<em>.</em>forge</div>
+  <div class="crumb">meeting → <b>brief</b> → <b>agent</b> · Kimi ⚡ Whisper · Daytona</div>
+  <div class="spacer"></div>
+  <div class="pill" id="status"><span class="dot"></span><span id="statusTxt">idle</span></div>
+  <button class="btn play" id="playBtn" onclick="playMeeting()">▶ Play meeting</button>
+</div>
+
+<div class="cols">
+
+  <!-- LEFT: transcript -->
+  <div class="pane">
+    <div class="phead"><h2>LIVE TRANSCRIPT</h2><span class="tag" id="asr"></span></div>
+    <div class="pbody" id="transcript">
+      <div class="hint">Press <b>▶ Play meeting</b> — Whisper streams the conversation here, and the brief writes itself as the client talks.</div>
+    </div>
+  </div>
+
+  <!-- MIDDLE: the brief -->
+  <div class="pane">
+    <div class="phead"><h2>THE BRIEF</h2><span class="tag" id="extractTag"></span></div>
+    <div class="pbody">
+      <div class="brief" id="brief">
+        <div class="waiting" id="briefWait">The consultant's brief appears here, section by section,<br>while the client is still talking.<br><br><span style="font-family:var(--mono);font-size:10px;letter-spacing:.15em">SCQA · SITUATION → COMPLICATION → QUESTION → ANSWER</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: results -->
+  <div class="pane">
+    <div class="tabs">
+      <button class="tab on" id="tabFlow" onclick="showTab('flow')">⛓ Workflow</button>
+      <button class="tab" id="tabChat" onclick="showTab('chat')" disabled>💬 Agent</button>
+    </div>
+    <div class="stage">
+
+      <div class="flowwrap" id="flowPane">
+        <div class="flowtitle">WHAT WE UNDERSTOOD — CONFIRM WITH THE CLIENT</div>
+        <div class="empty" id="flowEmpty">
+          <div class="big">The workflow draws itself.</div>
+          As the pain becomes clear, the client's daily process appears here — left to right — so they can nod before we forge.
+        </div>
+        <div class="flow" id="flow" style="display:none">
+          <div class="fcol">
+            <div class="fnode" data-n="1"><b>SPG closing</b><span>end of shift · receipt photo</span></div>
+          </div>
+          <div class="farrow" data-n="2"></div>
+          <div class="fcol">
+            <div class="fnode" data-n="2"><b>Read receipt</b><span>OCR → per-channel omset</span></div>
+          </div>
+          <div class="farrow" data-n="3"></div>
+          <div class="fcol">
+            <div class="fnode teal" data-n="3"><b>Match vs bank</b><span>BCA statement · per channel</span></div>
+            <div class="fnode teal" data-n="4"><b>Book fees</b><span>QRIS 0.7% · GoFood 20%</span></div>
+          </div>
+          <div class="farrow" data-n="5"></div>
+          <div class="fcol">
+            <div class="fnode" data-n="5"><b>Verdicts</b><span>🟢 matched · 🟡 in transit</span></div>
+            <div class="fnode flag" data-n="6"><b>Flag exceptions</b><span>🔴 never guess — escalate</span></div>
+          </div>
+          <div class="farrow" data-n="7"></div>
+          <div class="fcol">
+            <div class="fnode" data-n="7"><b>Fill the sheet</b><span>MASUK cells · audit trail</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="boot" id="bootPane" style="display:none"></div>
+
+      <div class="phone" id="chatPane" style="display:none">
+        <div class="wahead">
+          <div class="avatar">N</div>
+          <div><b>Nusa · Bali Banana</b><small id="waStatus">AI employee · online</small></div>
+          <div class="urlchip">bali-banana.daytona.app</div>
+        </div>
+        <div class="chat" id="chat"></div>
+        <div class="chips" id="chips">
+          <button class="chip" onclick="say('halo')">halo</button>
+          <button class="chip" onclick="sendFiles()">📎 closing + bank file</button>
+          <button class="chip" onclick="say('what is the 50k credit?')">what's the 50k?</button>
+        </div>
+        <div class="warow">
+          <input id="waIn" placeholder="Type a message" onkeydown="if(event.key==='Enter')say(this.value)">
+          <button class="send" onclick="say(document.getElementById('waIn').value)">➤</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div><!-- /consoleView -->
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- calendar front page ---------- */
+function openEvent() { $('evPop').style.display = 'block'; }
+function closeEvent() { $('evPop').style.display = 'none'; }
+function startMeeting() {
+  $('calView').style.display = 'none';
+  $('consoleView').style.display = 'block';
+  setTimeout(playMeeting, 700);
+}
+
+/* ---------- meeting script: transcript lines + what each reveals ---------- */
+const LINES = [
+  { who:'NURA', text:"So — tell me about the business. Name, how many outlets, who runs the day-to-day?" },
+  { who:'CLIENT', text:"We're Bali Banana — two outlets in Denpasar. I'm Dharma. My admin, Sari, runs the mornings.", reveal:'situation' },
+  { who:'NURA', text:"And what's the most tiring part of every day?" },
+  { who:'CLIENT', text:"Every morning Sari opens the BCA statement and matches it line by line against last night's closings. QRIS comes in short, GoFood lands two days late… two, three hours. Every single day.", reveal:'complication' },
+  { who:'NURA', text:"If you had one assistant, what would you want it to do?" },
+  { who:'CLIENT', text:"Just tell me: this matches, this is still on the way, and THIS one — go check it.", reveal:'question' },
+  { who:'NURA', text:"Perfect. Can you send me yesterday's closing and the bank file — a photo and the CSV export are fine?" },
+  { who:'CLIENT', text:"Sure. Sari will send the shift receipt photo and the BCA export now.", reveal:'files' },
+  { who:'NURA', text:"Anything it should never do?" },
+  { who:'CLIENT', text:"Never make up a number. If it doesn't know, say so. And never tell a customer a payment is confirmed before Sari checks.", reveal:'guardrails' },
+];
+
+const BRIEF = {
+  head: `<div class="kicker">MEETING BRIEF · WRITTEN LIVE, FOR YOU</div>
+         <h1>Bali Banana</h1><div class="sub">Pak Dharma · 2 outlets, Denpasar · written while we talk — tell us if anything is wrong</div>`,
+  situation: `<div class="bsec on"><h3>Your business</h3><p>Two banana dessert outlets in Denpasar. <span class="hl">Mbak Sari runs the money side every morning.</span></p></div>`,
+  complication: `<div class="bsec on"><h3>What's eating your mornings</h3><p>Sari spends <span class="hl">2–3 hours every morning</span> checking the bank against last night's sales — QRIS comes in a little short, GoFood pays two days later, and every day something doesn't add up.</p></div>`,
+  question: `<div class="bsec on"><h3>What you asked for</h3><p>“Just tell me what matches, what's still on the way, and what to check.”</p>
+    <p style="margin-top:9px"><span class="route">✓ We'll build you: a Finance Assistant <small>· it checks your money every morning</small></span></p></div>`,
+  files: `<div class="bsec on"><h3>What you're sharing with us</h3><p>Yesterday's <span class="hl">closing receipt (photo)</span> + the <span class="hl">bank statement (file)</span> — used only to test your assistant with your real numbers. The math is done by fixed rules, <span class="hl">never guessed by AI</span>.</p></div>`,
+  guardrails: `<div class="bsec on"><h3>Your assistant will never</h3><ul class="glist">
+      <li>make up a number — it flags what it can't explain</li>
+      <li>tell a customer a payment is confirmed before Sari checks</li>
+      <li>hide a gap to make the books look clean</li></ul></div>`,
+  research: `<div class="bsec on"><h3>We did our homework <span style="font-family:var(--mono);font-size:10px;color:var(--teal);font-weight:400">· BEFORE THE MEETING</span></h3><p>2 outlets · GoFood 4.8★ · 12.4k on Instagram · you posted for an "admin keuangan" in May — so we knew the back-office was hurting. Your competitors (Sang Pisang, Pisang Nugget Bali) still do this by hand too.</p></div>`,
+};
+
+const FLOW_ON = { situation:[1], complication:[2,3,4], question:[5,6], files:[7], guardrails:[] };
+
+let played = false;
+async function playMeeting() {
+  if (played) return; played = true;
+  $('playBtn').disabled = true;
+  $('status').classList.add('rec'); $('statusTxt').textContent = 'recording';
+  $('asr').textContent = 'whisper · live';
+  $('transcript').innerHTML = '';
+  $('extractTag').innerHTML = '<span class="shimmer">KIMI EXTRACTING</span>';
+  $('briefWait').remove();
+  $('brief').insertAdjacentHTML('afterbegin', BRIEF.head);
+  $('brief').insertAdjacentHTML('beforeend', BRIEF.research);
+  $('flowEmpty').style.display='none'; $('flow').style.display='flex';
+
+  const t0 = 14*3600 + 36*60;
+  for (let i = 0; i < LINES.length; i++) {
+    const L = LINES[i];
+    const ts = new Date((t0 + i*14) * 1000).toISOString().substr(11,5);
+    $('transcript').insertAdjacentHTML('beforeend',
+      `<div class="tline"><div class="tmeta"><span>${ts}</span><span class="who ${L.who==='CLIENT'?'client':''}">${L.who}</span></div><div class="ttext">${L.text}</div></div>`);
+    $('transcript').scrollTop = 1e6;
+    await sleep(L.who === 'NURA' ? 1000 : 1900);
+    if (L.reveal) {
+      $('brief').insertAdjacentHTML('beforeend', BRIEF[L.reveal]);
+      (FLOW_ON[L.reveal] || []).forEach((n, j) =>
+        setTimeout(() => document.querySelectorAll(`[data-n="${n}"]`).forEach(el => el.classList.add('on')), j*220));
+      if (L.reveal === 'question') autoForge();
+      if (L.reveal === 'guardrails') refineAgent();
+      await sleep(700);
+    }
+  }
+  $('status').classList.remove('rec');
+  $('statusTxt').textContent = agentState === 'live' ? 'meeting ended · agent live' : 'meeting ended';
+  $('extractTag').innerHTML = 'spec.json ✓ · brief.md ✓';
+  await sleep(900);
+  showTab('chat');
+}
+
+/* ---------- auto-forge: fires mid-meeting, no button ---------- */
+const BOOT = [
+  ['spec so far is buildable — forging early, will refine as you talk', 600, ''],
+  ['validating spec.json against schema', 600, 'ok'],
+  ['template: finance_assistant → skills: [reconcile]', 500, ''],
+  ['daytona: creating sandbox from snapshot biks-agent:v3', 1600, 'ok'],
+  ['injecting spec.json + recon fixtures + guardrails', 900, 'ok'],
+  ['starting agent server :3000 (Kimi brain connected)', 1100, 'ok'],
+  ['preview url ready', 400, 'ok'],
+];
+let agentState = 'none', refineQueued = false, curTab = 'flow';
+async function autoForge() {
+  if (agentState !== 'none') return;
+  agentState = 'booting';
+  $('tabChat').disabled = false;
+  $('tabChat').textContent = '⚡ forging…';
+  $('statusTxt').textContent = 'recording · forging';
+  const boot = $('bootPane');
+  boot.innerHTML = '<div class="line big">⚡ AUTO-FORGE — bali-banana</div><div class="timer" id="tm">0.0s</div>';
+  const start = performance.now();
+  const tick = setInterval(() => { const el=$('tm'); if(el) el.textContent = ((performance.now()-start)/1000).toFixed(1)+'s'; }, 100);
+  for (const [txt, ms, ok] of BOOT) {
+    boot.insertAdjacentHTML('beforeend', `<div class="line">${ok?'<span class="ok">✔</span> ':'· '}${txt}</div>`);
+    await sleep(ms);
+  }
+  clearInterval(tick);
+  boot.insertAdjacentHTML('beforeend', `<div class="line big" style="margin-top:8px">→ <span class="ok">https://bali-banana.daytona.app</span> · live in ${((performance.now()-start)/1000).toFixed(1)}s — meeting still going</div>`);
+  agentState = 'live';
+  $('tabChat').textContent = '💬 Agent';
+  if ($('status').classList.contains('rec')) $('statusTxt').textContent = 'recording · agent live';
+  sysChip(`✓ forged from this meeting · <b>v1</b> · bali-banana.daytona.app`);
+  if (refineQueued) doRefine();
+  if (curTab === 'chat') showTab('chat');
+}
+function refineAgent() { agentState === 'live' ? doRefine() : refineQueued = true; }
+function doRefine() { sysChip(`⟳ refined while you talked — house rules locked · <b>v2</b>`); }
+function sysChip(html) {
+  $('chat').insertAdjacentHTML('beforeend', `<div class="sys">${html}</div>`);
+  $('chat').scrollTop = 1e6;
+}
+
+/* ---------- tabs ---------- */
+function showPane(id) {
+  ['flowPane','bootPane','chatPane'].forEach(p => $(p).style.display = 'none');
+  $(id).style.display = id === 'chatPane' ? 'flex' : 'block';
+}
+function showTab(which) {
+  curTab = which;
+  $('tabFlow').classList.toggle('on', which === 'flow');
+  $('tabChat').classList.toggle('on', which === 'chat');
+  if (which === 'flow') showPane('flowPane');
+  else showPane(agentState === 'booting' ? 'bootPane' : 'chatPane');
+}
+
+/* ---------- whatsapp agent (scripted demo brain) ---------- */
+const now = () => new Date().toTimeString().substr(0,5);
+function bubble(html, cls) {
+  $('chat').insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${html}<div class="time">${now()}</div></div>`);
+  $('chat').scrollTop = 1e6;
+}
+async function agentSays(html, cls='in') {
+  $('chat').insertAdjacentHTML('beforeend', `<div class="typing" id="ty"><i></i><i></i><i></i></div>`);
+  $('chat').scrollTop = 1e6;
+  $('waStatus').textContent = 'typing…';
+  await sleep(1300);
+  $('ty').remove(); $('waStatus').textContent = 'AI employee · online';
+  bubble(html, cls);
+}
+function say(text) {
+  text = (text||'').trim(); if (!text) return;
+  $('waIn').value = '';
+  bubble(text, 'out');
+  route(text.toLowerCase());
+}
+async function route(t) {
+  if (t.includes('halo') || t.includes('hello') || t.includes('hi')) {
+    await agentSays(`Halo Pak Dharma! 🙌 I'm <b>Nusa</b> — the reconciliation assistant for Bali Banana.
+      <span class="v">I know Mbak Sari spends 2–3 hours every morning matching the BCA statement against the closings from your 2 outlets. That's my job now: read the closings & the statement, match sales ↔ money in, and only flag what truly needs a human.</span>
+      <span class="v">📸 <b>SPG</b> — send the closing at end of shift (photo is fine)</span>
+      <span class="v">📄 <b>Mbak Sari</b> — send the bank file each morning; I'll book QRIS 0.7% & GoFood 20% fees automatically</span>
+      <span class="v">Verdicts: 🟢 matched · 🟡 in transit · 🔴 needs a check</span>
+      <span class="v">Want to try? Send yesterday's closing 👇</span>`, 'in wow');
+  } else if (t.includes('50')) {
+    await agentSays(`Honestly — <b>I don't know what that Rp 50.000 credit is</b>, and I won't guess.
+      <span class="v">It doesn't match any closing, any channel, any fee pattern. I've flagged it 🔴 for Mbak Sari to check.</span>`, 'in refuse');
+  } else if (t.includes('confirm') || t.includes('paid') || t.includes('transfer')) {
+    await agentSays(`I've noted the transfer — <b>Mbak Sari will verify and confirm</b>. I never confirm payments myself.`);
+  } else {
+    await agentSays(`Let me check with the owner on that one — noted and escalated. 📋`);
+  }
+}
+async function sendFiles() {
+  bubble(`<div class="filecard"><span class="fico">🧾</span><div><b>closing_17jun.jpg</b><br><small>SPG shift receipt</small></div></div>`, 'out');
+  await sleep(400);
+  bubble(`<div class="filecard"><span class="fico">🏦</span><div><b>mutasi_bca_18jun.csv</b><br><small>bank statement</small></div></div>`, 'out');
+  await agentSays(`Echo first: CASH 2.150.000 · QRIS 1.430.000 · GoFood 1.250.000 · Transfer 615.000 — correct? ✅ Reconciling…`);
+  await agentSays(`Done. Here's the verdict for 17 Jun:
+    <table class="verdict">
+      <tr><td>🟢 QRIS</td><td class="amt">1.420.000</td><td>fee 10.010 booked</td></tr>
+      <tr><td>🟢 Transfer</td><td class="amt">615.000</td><td>exact match</td></tr>
+      <tr><td>🟡 GoFood</td><td class="amt">1.250.000</td><td>settles H+2 · fee 168.000 expected</td></tr>
+      <tr><td>🔴 Credit</td><td class="amt">50.000</td><td>matches nothing — flagged</td></tr>
+    </table>
+    <span class="v">Sheet updated ✓ (MASUK cells + audit log). Ask me about any line.</span>`);
+}
+</script>
+</body>
+</html>

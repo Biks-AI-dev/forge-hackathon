@@ -3,120 +3,383 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Notula — AI Meeting Scribe</title>
+<title>biks.forge — meeting → agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b0f17; --panel: #121826; --panel2: #0e1420; --border: #223047;
-    --text: #e6edf7; --muted: #7d8ba1; --accent: #7c5cff; --accent2: #00d4a6;
-    --danger: #ff5470; --warn: #ffb02e;
+    --paper:#FAF7F1; --paper-2:#F3EEE5; --ink:#161512; --muted:#6E6A61; --hair:#E2DCCE;
+    --teal:#0F766E; --teal-deep:#0A5B55; --teal-tint:#E4F0EE; --teal-glow:rgba(15,118,110,.25);
+    --coral:#C2492E; --coral-tint:#F8E9E4; --amber:#B45309; --amber-tint:#FAEFDC;
+    --green:#2E7D32; --wa-bg:#EFE7DB; --wa-out:#DDF3D4;
+    --serif:"Fraunces",serif; --sans:"Instrument Sans",sans-serif; --mono:"IBM Plex Mono",monospace;
   }
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; overflow:hidden; }
+  body { background:var(--paper); color:var(--ink); font-family:var(--sans);
+    background-image:radial-gradient(ellipse 90% 60% at 70% -10%, rgba(15,118,110,.06), transparent 60%); }
 
-  header { display: flex; align-items: center; gap: 1rem; padding: 0.7rem 1.2rem; border-bottom: 1px solid var(--border); background: var(--panel2); }
-  .logo { font-weight: 800; font-size: 1.15rem; letter-spacing: 0.3px; }
-  .logo span { background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .sub { color: var(--muted); font-size: 0.75rem; }
-  .spacer { flex: 1; }
+  /* ---------- calendar (front page) ---------- */
+  .cal { height:100%; display:flex; flex-direction:column; background:#fff; color:#3c4043; }
+  .gbar { height:64px; display:flex; align-items:center; gap:14px; padding:0 18px; border-bottom:1px solid #dadce0; }
+  .gburger { display:flex; flex-direction:column; gap:4px; padding:10px; cursor:pointer; }
+  .gburger span { width:18px; height:2px; background:#5f6368; }
+  .glogo { display:flex; align-items:center; gap:9px; font-size:21px; color:#3c4043; }
+  .gdate { width:34px; height:34px; border:2px solid #1a73e8; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .gdate b { font-size:14px; color:#1a73e8; line-height:1; }
+  .gdate small { font-size:7px; color:#1a73e8; letter-spacing:.05em; }
+  .gtoday { border:1px solid #dadce0; background:#fff; border-radius:5px; padding:8px 16px; font-size:14px; color:#3c4043; }
+  .gnav { border:none; background:none; font-size:17px; color:#5f6368; padding:6px 9px; border-radius:50%; }
+  .gnav:hover { background:#f1f3f4; }
+  .gmonth { font-size:21px; font-weight:400; color:#3c4043; }
+  .gview { margin-left:auto; border:1px solid #dadce0; border-radius:5px; padding:8px 14px; font-size:14px; color:#3c4043; background:#fff; }
+  .calbody { flex:1; display:flex; min-height:0; }
+  .gside { width:238px; padding:14px 12px; border-right:1px solid #f1f3f4; }
+  .gcreate { display:inline-flex; align-items:center; gap:10px; background:#fff; border:none; border-radius:24px; padding:13px 22px 13px 15px;
+    font-size:14px; font-weight:500; color:#3c4043; box-shadow:0 1px 3px rgba(0,0,0,.25); margin-bottom:18px; }
+  .gcreate .plus { font-size:20px; background:linear-gradient(45deg,#1a73e8,#ea4335,#fbbc04,#34a853); -webkit-background-clip:text; background-clip:text; color:transparent; font-weight:700; }
+  .mini { font-size:10.5px; }
+  .mini .mtitle { font-size:13px; font-weight:500; margin:0 0 8px 6px; }
+  .mini table { border-collapse:collapse; width:100%; text-align:center; }
+  .mini th { color:#70757a; font-weight:500; padding:3px; font-size:9.5px; }
+  .mini td { padding:4px 2px; color:#3c4043; cursor:pointer; border-radius:50%; }
+  .mini td.dim { color:#b8bcc1; }
+  .mini td.sel { background:#1a73e8; color:#fff; font-weight:600; }
+  .gmain { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .dhead { display:flex; border-bottom:1px solid #dadce0; padding-left:56px; }
+  .dcol { flex:1; text-align:center; padding:8px 0 10px; }
+  .dcol small { display:block; font-size:10.5px; color:#70757a; letter-spacing:.08em; }
+  .dcol .num { font-size:22px; color:#3c4043; width:40px; height:40px; line-height:40px; margin:3px auto 0; border-radius:50%; }
+  .dcol.today .num { background:#1a73e8; color:#fff; }
+  .allday { display:flex; padding-left:56px; border-bottom:1px solid #dadce0; min-height:26px; }
+  .adcol { flex:1; padding:2px 4px; }
+  .adchip { background:#f6bf26; color:#3c4043; font-size:11px; font-weight:500; border-radius:4px; padding:3px 8px; }
+  .ggrid { flex:1; overflow-y:auto; position:relative; display:flex; }
+  .gutter { width:56px; flex:none; }
+  .gutter div { height:52px; font-size:9.5px; color:#70757a; text-align:right; padding-right:8px; transform:translateY(-5px); }
+  .gcols { flex:1; display:flex; position:relative;
+    background:linear-gradient(#dadce0 1px, transparent 1px); background-size:100% 52px; }
+  .gday { flex:1; border-left:1px solid #dadce0; position:relative; }
+  .gev { position:absolute; left:3px; right:5px; border-radius:5px; padding:5px 8px; font-size:11.5px; font-weight:500;
+    color:#fff; line-height:1.35; cursor:pointer; overflow:hidden; }
+  .gev small { font-weight:400; opacity:.9; display:block; }
+  .gev.main-ev { background:var(--teal); box-shadow:0 1px 4px rgba(15,118,110,.4); outline:0 solid var(--teal-glow); animation:ready 1.8s infinite; }
+  .gev.gray { background:#7986cb; } .gev.green { background:#33b679; } .gev.pale { background:#d2e3fc; color:#1967d2; }
+  .nowline { position:absolute; left:0; right:0; height:2px; background:#ea4335; z-index:3; }
+  .nowline::before { content:""; position:absolute; left:-6px; top:-5px; width:12px; height:12px; border-radius:50%; background:#ea4335; }
+  /* event popover */
+  .pop { position:fixed; right:290px; top:120px; width:430px; background:#fff; border-radius:12px; z-index:20;
+    box-shadow:0 6px 26px rgba(0,0,0,.28); padding:20px 22px; display:none; color:#3c4043; }
+  .pop .close { position:absolute; right:12px; top:10px; border:none; background:none; font-size:17px; color:#5f6368; cursor:pointer; }
+  .pop h3 { display:flex; align-items:center; gap:11px; font-size:19px; font-weight:500; margin-bottom:3px; }
+  .pop h3 i { width:15px; height:15px; border-radius:4px; background:var(--teal); flex:none; }
+  .pop .when { font-size:13.5px; color:#5f6368; margin-left:26px; margin-bottom:12px; }
+  .prow { display:flex; gap:11px; font-size:13px; margin-bottom:8px; align-items:baseline; }
+  .prow .ic { width:17px; text-align:center; flex:none; }
+  .prow a { color:#1a73e8; text-decoration:none; }
+  .startbtn { margin-top:15px; width:100%; background:var(--teal); color:#fff; border:none; border-radius:8px;
+    padding:13px; font-size:14.5px; font-weight:600; letter-spacing:.02em; cursor:pointer; }
+  .startbtn:hover { background:var(--teal-deep); }
 
-  button {
-    font: inherit; font-size: 0.85rem; padding: 0.5rem 0.9rem; border-radius: 9px; cursor: pointer;
-    border: 1px solid var(--border); background: var(--panel); color: var(--text); transition: all 0.15s;
-  }
-  button:hover { border-color: var(--accent); }
-  button:disabled { opacity: 0.45; cursor: default; }
-  button.rec { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 700; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-  button.green { background: var(--accent2); border-color: var(--accent2); color: #04261d; font-weight: 700; }
-  .pill { padding: 0.3rem 0.7rem; border-radius: 999px; font-size: 0.75rem; border: 1px solid var(--border); color: var(--muted); }
-  .pill.busy { color: var(--warn); border-color: var(--warn); animation: pulse 1.2s infinite; }
-  @keyframes pulse { 50% { opacity: 0.5; } }
+  /* ---------- top bar ---------- */
+  .bar { height:58px; display:flex; align-items:center; gap:14px; padding:0 20px;
+    border-bottom:1px solid var(--hair); background:var(--paper); position:relative; z-index:5; }
+  .wordmark { font-family:var(--serif); font-weight:700; font-size:21px; letter-spacing:-.02em; }
+  .wordmark em { font-style:normal; color:var(--teal); }
+  .crumb { font-family:var(--mono); font-size:10.5px; color:var(--muted); letter-spacing:.03em; white-space:nowrap; }
+  .crumb b { color:var(--ink); font-weight:500; }
+  .bar .spacer { flex:1; }
+  .pill { display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:10.5px;
+    border:1px solid var(--hair); border-radius:999px; padding:6px 12px; color:var(--muted); background:#fff; }
+  .dot { width:7px; height:7px; border-radius:50%; background:#B9B4A8; }
+  .rec .dot { background:var(--coral); animation:pulse 1.1s infinite; }
+  .rec { color:var(--coral); border-color:var(--coral); }
+  @keyframes pulse { 50% { opacity:.25; } }
+  button { font-family:var(--sans); cursor:pointer; }
+  .btn { border:1px solid var(--ink); background:#fff; color:var(--ink); border-radius:8px;
+    padding:8px 14px; font-size:13px; font-weight:600; transition:transform .12s ease, box-shadow .12s ease; }
+  .btn:hover { transform:translateY(-1px); }
+  .btn.play { background:var(--ink); color:var(--paper); }
+  .btn.forge { background:var(--teal); border-color:var(--teal); color:#fff; letter-spacing:.02em;
+    box-shadow:0 0 0 0 var(--teal-glow); }
+  .btn.forge:not(:disabled) { animation:ready 1.6s infinite; }
+  @keyframes ready { 50% { box-shadow:0 0 0 9px transparent; } }
+  .btn:disabled { opacity:.35; cursor:default; animation:none; transform:none; }
 
-  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 1px; background: var(--border); min-height: 0; }
-  .col { background: var(--bg); display: flex; flex-direction: column; min-height: 0; }
-  .col-head { padding: 0.6rem 0.9rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; }
-  .col-body { flex: 1; overflow-y: auto; padding: 0.9rem; min-height: 0; }
+  /* ---------- panes ---------- */
+  .cols { display:grid; grid-template-columns: 300px 1fr 1.25fr; height:calc(100vh - 58px); }
+  .pane { border-right:1px solid var(--hair); display:flex; flex-direction:column; min-width:0; }
+  .pane:last-child { border-right:none; }
+  .phead { padding:13px 18px 11px; display:flex; align-items:baseline; gap:10px; border-bottom:1px solid var(--hair); }
+  .phead h2 { font-family:var(--mono); font-size:10.5px; font-weight:500; letter-spacing:.18em; color:var(--muted); }
+  .phead .tag { font-family:var(--mono); font-size:9.5px; color:var(--teal); margin-left:auto; }
+  .pbody { flex:1; overflow-y:auto; padding:16px 18px; scroll-behavior:smooth; }
 
   /* transcript */
-  .utt { margin-bottom: 0.65rem; font-size: 0.88rem; line-height: 1.45; }
-  .utt .who { font-size: 0.7rem; font-weight: 700; color: var(--accent2); }
-  .utt.us .who { color: var(--accent); }
-  .interim { opacity: 0.5; font-style: italic; }
+  .tline { margin-bottom:13px; opacity:0; transform:translateY(6px); animation:land .4s ease forwards; }
+  @keyframes land { to { opacity:1; transform:none; } }
+  .tmeta { font-family:var(--mono); font-size:10px; color:var(--muted); display:flex; gap:8px; margin-bottom:3px; }
+  .tmeta .who { color:var(--teal); font-weight:500; }
+  .tmeta .who.client { color:var(--amber); }
+  .ttext { font-size:13px; line-height:1.55; }
+  .hint { color:var(--muted); font-size:12.5px; line-height:1.6; padding:8px 0; }
+  .speaker-row { display:flex; gap:6px; padding:0 18px 9px; border-bottom:1px solid var(--hair); }
+  .speaker-row button { font-family:var(--mono); font-size:9.5px; border:1px solid var(--hair); background:var(--paper-2);
+    color:var(--muted); border-radius:6px; padding:4px 10px; letter-spacing:.04em; }
+  .speaker-row button.sel { background:var(--teal); color:#fff; border-color:var(--teal); }
+  .speaker-row button.sel.client { background:var(--amber); border-color:var(--amber); }
 
-  /* notes */
-  .note-sec { margin-bottom: 1rem; }
-  .note-sec h4 { margin: 0 0 0.4rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-  .note-sec ul { margin: 0; padding-left: 1.1rem; font-size: 0.86rem; line-height: 1.5; }
-  .summary-box { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent2); border-radius: 10px; padding: 0.7rem 0.9rem; font-size: 0.88rem; margin-bottom: 1rem; }
+  /* ---------- brief (editorial) ---------- */
+  .brief { max-width:520px; }
+  .brief .kicker { font-family:var(--mono); font-size:10px; letter-spacing:.22em; color:var(--teal); margin-bottom:6px; }
+  .brief h1 { font-family:var(--serif); font-size:30px; font-weight:600; letter-spacing:-.02em; line-height:1.08; margin-bottom:2px; }
+  .brief .sub { font-size:13px; color:var(--muted); margin-bottom:18px; }
+  .bsec { margin-bottom:16px; opacity:0; transform:translateY(8px); }
+  .bsec.on { animation:land .5s ease forwards; }
+  .bsec h3 { font-family:var(--serif); font-size:15px; font-weight:700; margin-bottom:4px; }
+  .bsec p, .bsec ul { font-size:13.5px; line-height:1.6; }
+  .bsec p .hl { background:linear-gradient(transparent 62%, var(--teal-tint) 0); font-weight:600; }
+  .route { display:inline-flex; align-items:center; gap:8px; border:1.5px solid var(--teal); color:var(--teal-deep);
+    background:var(--teal-tint); font-family:var(--mono); font-size:11.5px; font-weight:500; border-radius:6px; padding:7px 12px; }
+  .route small { color:var(--muted); }
+  .glist { list-style:none; }
+  .glist li { font-size:13px; padding:5px 0 5px 22px; position:relative; }
+  .glist li::before { content:"✕"; position:absolute; left:2px; color:var(--coral); font-weight:700; font-size:11px; top:7px; }
+  .brief .waiting { border:1.5px dashed var(--hair); border-radius:10px; padding:26px 18px; text-align:center;
+    color:var(--muted); font-size:12.5px; line-height:1.7; }
+  .shimmer { display:inline-block; font-family:var(--mono); font-size:10px; color:var(--teal);
+    letter-spacing:.14em; }
+  .shimmer::after { content:"…"; animation:dots 1.2s steps(4) infinite; }
+  @keyframes dots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} }
 
-  /* right column tabs */
-  .tabbtns { display: flex; gap: 0.4rem; }
-  .tabbtns button { padding: 0.3rem 0.8rem; font-size: 0.78rem; border-radius: 999px; }
-  .tabbtns button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  #prd-view { font-size: 0.88rem; line-height: 1.6; }
-  #prd-view h1, #prd-view h2, #prd-view h3 { color: var(--accent2); margin: 1.1em 0 0.4em; }
-  #prd-view h1 { font-size: 1.2rem; } #prd-view h2 { font-size: 1.05rem; } #prd-view h3 { font-size: 0.95rem; }
-  #prd-view table { border-collapse: collapse; width: 100%; font-size: 0.82rem; margin: 0.5rem 0; }
-  #prd-view th, #prd-view td { border: 1px solid var(--border); padding: 0.35rem 0.5rem; text-align: left; }
-  #prd-view code { background: var(--panel); padding: 0.1rem 0.35rem; border-radius: 5px; }
-  iframe { width: 100%; height: 100%; border: none; background: #fff; border-radius: 10px; }
-  .empty { color: var(--muted); font-size: 0.86rem; text-align: center; margin-top: 3rem; }
-  .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--danger); color: #fff; padding: 0.6rem 1.1rem; border-radius: 10px; font-size: 0.85rem; display: none; max-width: 80vw; }
-  a { color: var(--accent2); }
+  /* prd rendered in brief */
+  .brief .prd-section { margin-bottom:22px; }
+  .brief .prd-section h2 { font-family:var(--serif); font-size:18px; font-weight:700; margin-bottom:8px; color:var(--ink); }
+  .brief .prd-section h3 { font-family:var(--serif); font-size:14px; font-weight:700; margin:8px 0 5px; }
+  .brief .prd-section table { border-collapse:collapse; width:100%; font-size:11.5px; margin:8px 0; font-family:var(--mono); }
+  .brief .prd-section th, .brief .prd-section td { border:1px solid var(--hair); padding:5px 8px; text-align:left; }
+  .brief .prd-section th { background:var(--paper-2); font-weight:600; }
+  .brief .prd-section code { background:var(--paper-2); padding:1px 5px; border-radius:4px; font-family:var(--mono); font-size:11px; }
+  .brief .prd-section ul, .brief .prd-section ol { padding-left:1.3em; margin:6px 0; }
+  .brief .prd-section pre { background:var(--ink); color:#D8D4C8; font-family:var(--mono); font-size:10.5px; padding:12px 14px; border-radius:8px; overflow-x:auto; line-height:1.5; margin:8px 0; }
+
+  /* ---------- results pane ---------- */
+  .tabs { display:flex; gap:6px; padding:12px 18px 0; }
+  .tab { font-size:13px; font-weight:600; border:1px solid var(--hair); border-bottom:none; background:var(--paper-2);
+    color:var(--muted); border-radius:9px 9px 0 0; padding:9px 16px; }
+  .tab.on { background:#fff; color:var(--ink); border-color:var(--ink); position:relative; }
+  .tab.on::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:#fff; }
+  .tab:disabled { opacity:.4; }
+  .stage { flex:1; border-top:1px solid var(--ink); background:#fff; overflow:hidden; display:flex; flex-direction:column; }
+
+  /* workflow */
+  .flowwrap { flex:1; overflow:auto; padding:34px 26px; background:
+    linear-gradient(var(--hair) 1px, transparent 1px), linear-gradient(90deg, var(--hair) 1px, transparent 1px);
+    background-size:28px 28px; background-position:center; }
+  .flowtitle { font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; color:var(--muted); margin-bottom:22px; }
+  .flow { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; }
+  .fcol { display:flex; flex-direction:column; gap:12px; justify-content:center; }
+  .fnode { border:1.5px solid var(--ink); background:var(--paper); border-radius:10px; padding:10px 12px; width:122px;
+    opacity:0; transform:scale(.92); box-shadow:3px 3px 0 var(--paper-2); }
+  .fnode.on { animation:pop .35s ease forwards; }
+  @keyframes pop { to { opacity:1; transform:none; } }
+  .fnode b { display:block; font-size:13px; }
+  .fnode span { font-size:11px; color:var(--muted); line-height:1.4; display:block; margin-top:2px; }
+  .fnode.teal { border-color:var(--teal); background:var(--teal-tint); box-shadow:3px 3px 0 rgba(15,118,110,.15); }
+  .fnode.teal b { color:var(--teal-deep); }
+  .fnode.flag { border-color:var(--coral); background:var(--coral-tint); }
+  .fnode.flag b { color:var(--coral); }
+  .farrow { width:22px; align-self:center; height:2px; background:var(--ink); position:relative; opacity:0; flex:none; }
+  .farrow.on { animation:grow .3s ease forwards; }
+  @keyframes grow { from { transform:scaleX(0);} to { opacity:1; transform:none; } }
+  .farrow::after { content:""; position:absolute; right:-1px; top:-4px; border:5px solid transparent; border-left-color:var(--ink); }
+
+  /* boot log */
+  .boot { flex:1; padding:30px; font-family:var(--mono); font-size:12.5px; background:var(--ink); color:#D8D4C8; overflow-y:auto; }
+  .boot .line { margin-bottom:9px; opacity:0; animation:land .3s forwards; }
+  .boot .ok { color:#5CC8A8; }
+  .boot .big { color:#fff; font-size:15px; }
+  .timer { font-size:44px; font-family:var(--mono); color:#5CC8A8; letter-spacing:.02em; margin:14px 0; }
+
+  /* prototype iframe */
+  .proto-wrap { flex:1; display:flex; flex-direction:column; min-height:0; background:#fff; }
+  .proto-wrap iframe { flex:1; border:none; border-radius:0; width:100%; }
+  .proto-url { padding:8px 14px; font-family:var(--mono); font-size:9.5px; color:var(--teal); background:var(--paper-2);
+    border-top:1px solid var(--hair); display:none; }
+  .proto-url a { color:var(--teal); }
+
+  .empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    color:var(--muted); font-size:13px; text-align:center; padding:30px; }
+  .empty .big { font-family:var(--serif); font-size:19px; color:var(--ink); }
+
+  .toast { position:fixed; bottom:1.2rem; left:50%; transform:translateX(-50%); background:var(--coral); color:#fff;
+    padding:0.7rem 1.2rem; border-radius:10px; font-size:0.85rem; display:none; max-width:80vw; z-index:99; font-family:var(--sans); }
 </style>
 </head>
 <body>
 
-<header>
-  <div>
-    <div class="logo">📝 <span>Notula</span></div>
-    <div class="sub">live transcript → notes → PRD → prototype · Kimi ⚡ Nosana · Daytona</div>
+<!-- ============ FRONT PAGE: calendar ============ -->
+<div class="cal" id="calView">
+  <div class="gbar">
+    <div class="gburger"><span></span><span></span><span></span></div>
+    <div class="glogo"><div class="gdate"><small>JUL</small><b>18</b></div> Calendar</div>
+    <button class="gtoday">Today</button>
+    <button class="gnav">‹</button><button class="gnav">›</button>
+    <span class="gmonth">July 2026</span>
+    <button class="gview">Week ▾</button>
   </div>
-  <div class="spacer"></div>
-  <span id="st-notes" class="pill">idle</span>
-  <button id="btn-auto" class="pill" style="cursor:pointer;" title="Bots regenerate PRD + UI + deploy automatically while the client talks">🤖 Auto: ON</button>
-  <button id="btn-rec" class="primary">▶ Start Recording</button>
-  <button id="btn-forge" class="green" title="Run a full cycle now: notes → PRD + UI in parallel → deploy">⚡ Forge Now</button>
-  <button id="btn-reset" title="New meeting">↺</button>
-</header>
-
-<main>
-  <div class="col">
-    <div class="col-head">🎤 Transcript <span id="rec-ind"></span></div>
-    <div class="col-body" id="transcript"><div class="empty">Click ▶ Start Recording and just talk —<br>both sides of the conversation are captured.</div></div>
-  </div>
-
-  <div class="col">
-    <div class="col-head">🧠 Live Notes</div>
-    <div class="col-body" id="notes"><div class="empty">Key points appear automatically<br>as the conversation goes on.</div></div>
-  </div>
-
-  <div class="col">
-    <div class="col-head">
-      <div class="tabbtns">
-        <button data-tab="prd" class="active">📄 PRD</button>
-        <button data-tab="proto">🖥️ Prototype</button>
+  <div class="calbody">
+    <div class="gside">
+      <button class="gcreate"><span class="plus">＋</span> Create</button>
+      <div class="mini">
+        <div class="mtitle">July 2026</div>
+        <table>
+          <tr><th>S</th><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th></tr>
+          <tr><td class="dim">28</td><td class="dim">29</td><td class="dim">30</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>
+          <tr><td>5</td><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td><td>11</td></tr>
+          <tr><td>12</td><td>13</td><td>14</td><td>15</td><td>16</td><td>17</td><td class="sel">18</td></tr>
+          <tr><td>19</td><td>20</td><td>21</td><td>22</td><td>23</td><td>24</td><td>25</td></tr>
+          <tr><td>26</td><td>27</td><td>28</td><td>29</td><td>30</td><td>31</td><td class="dim">1</td></tr>
+        </table>
       </div>
-      <div class="spacer"></div>
-      <a id="preview-link" href="#" target="_blank" style="font-size:0.75rem;display:none;">open in new tab ↗</a>
     </div>
-    <div class="col-body" id="tab-prd"><div id="prd-view"><div class="empty">Click “Generate PRD” anytime —<br>the document is built from the meeting notes.</div></div></div>
-    <div class="col-body" id="tab-proto" style="display:none;"><div class="empty" id="proto-empty">Click “Generate UI” to build a prototype<br>from the client’s requirements.</div><iframe id="proto-frame" style="display:none;"></iframe></div>
+    <div class="gmain">
+      <div class="dhead">
+        <div class="dcol"><small>SUN</small><div class="num">12</div></div>
+        <div class="dcol"><small>MON</small><div class="num">13</div></div>
+        <div class="dcol"><small>TUE</small><div class="num">14</div></div>
+        <div class="dcol"><small>WED</small><div class="num">15</div></div>
+        <div class="dcol"><small>THU</small><div class="num">16</div></div>
+        <div class="dcol"><small>FRI</small><div class="num">17</div></div>
+        <div class="dcol today"><small>SAT</small><div class="num">18</div></div>
+      </div>
+      <div class="allday">
+        <div class="adcol"></div><div class="adcol"></div><div class="adcol"></div><div class="adcol"></div>
+        <div class="adcol"></div><div class="adcol"></div>
+        <div class="adcol"><span class="adchip">Daytona HackSprint SG</span></div>
+      </div>
+      <div class="ggrid">
+        <div class="gutter">
+          <div></div><div>9 AM</div><div>10 AM</div><div>11 AM</div><div>12 PM</div>
+          <div>1 PM</div><div>2 PM</div><div>3 PM</div><div>4 PM</div><div>5 PM</div>
+        </div>
+        <div class="gcols">
+          <div class="gday"></div>
+          <div class="gday"><div class="gev pale" style="top:57px;height:44px">Standup</div></div>
+          <div class="gday"><div class="gev pale" style="top:213px;height:70px">Investor sync</div></div>
+          <div class="gday"><div class="gev pale" style="top:57px;height:44px">Standup</div></div>
+          <div class="gday"><div class="gev green" style="top:265px;height:44px">Lunch — Tracy</div></div>
+          <div class="gday"><div class="gev pale" style="top:57px;height:44px">Standup</div><div class="gev gray" style="top:427px;height:70px">Pitch rehearsal</div></div>
+          <div class="gday">
+            <div class="nowline" style="top:355px"></div>
+            <div class="gev main-ev" style="top:369px;height:96px" onclick="openEvent()">
+              Client discovery meeting
+              <small>3:00 – 4:00 PM</small>
+              <small id="calClientName">—</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-</main>
+
+  <div class="pop" id="evPop">
+    <button class="close" onclick="closeEvent()">✕</button>
+    <h3><i></i>Client discovery meeting</h3>
+    <div class="when" id="calWhen">—</div>
+    <div class="prow"><span class="ic">👤</span><span id="calAttendees">—</span></div>
+    <div class="prow"><span class="ic">🔗</span><span id="calUrl">—</span></div>
+    <div class="prow"><span class="ic">📍</span><span>—</span></div>
+    <button class="startbtn" onclick="startMeeting()">▶ Start meeting & record</button>
+  </div>
+</div>
+
+<!-- ============ CONSOLE ============ -->
+<div id="consoleView" style="display:none; height:100%">
+<div class="bar">
+  <div class="wordmark">biks<em>.</em>forge</div>
+  <div class="crumb">meeting → <b>brief</b> → <b>agent</b> · Kimi ⚡ Whisper · Daytona</div>
+  <div class="spacer"></div>
+  <div class="pill" id="st-pill"><span class="dot"></span><span id="st-txt">idle</span></div>
+  <button class="pill" id="btn-auto" style="cursor:pointer;background:var(--paper-2);" title="Bots regenerate PRD + UI + deploy automatically while the client talks">🤖 Auto: ON</button>
+  <button class="btn forge" id="btn-forge" title="Run a full cycle now: notes → PRD + UI → deploy">⚡ Forge Now</button>
+  <button class="btn play" id="btn-rec">▶ Record</button>
+  <button class="pill" id="btn-reset" style="cursor:pointer;" title="New meeting">↺</button>
+</div>
+
+<div class="cols">
+
+  <!-- LEFT: transcript -->
+  <div class="pane">
+    <div class="phead"><h2>LIVE TRANSCRIPT</h2><span class="tag" id="asr-tag"></span></div>
+    <div class="speaker-row">
+      <button class="sel" id="sp-us" onclick="setSpeaker('us')">🎙 Us</button>
+      <button id="sp-client" onclick="setSpeaker('client')">🧑‍💼 Client</button>
+    </div>
+    <div class="pbody" id="transcript">
+      <div class="hint">Click <b>▶ Record</b> to capture the conversation.<br>Whisper streams the transcript here — the brief writes itself as the client talks.</div>
+    </div>
+  </div>
+
+  <!-- MIDDLE: the brief -->
+  <div class="pane">
+    <div class="phead"><h2>THE BRIEF</h2><span class="tag" id="extract-tag"></span></div>
+    <div class="pbody">
+      <div class="brief" id="brief">
+        <div class="waiting" id="brief-wait">The brief appears here, section by section,<br>while the client is still talking.<br><br><span style="font-family:var(--mono);font-size:10px;letter-spacing:.12em">spec.json · brief.md · SCQA</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: results -->
+  <div class="pane">
+    <div class="tabs">
+      <button class="tab on" id="tabFlow" onclick="showTab('flow')">⛓ Workflow</button>
+      <button class="tab" id="tabAgent" onclick="showTab('agent')" disabled>💬 Agent</button>
+    </div>
+    <div class="stage">
+
+      <div class="flowwrap" id="flowPane">
+        <div class="flowtitle">WHAT WE UNDERSTOOD — CONFIRM WITH THE CLIENT</div>
+        <div id="flowContent">
+          <div class="empty" id="flowEmpty">
+            <div class="big">The workflow draws itself.</div>
+            As the pain becomes clear, the client's daily process appears here — so they can nod before we forge.
+          </div>
+          <div class="flow" id="flow" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="boot" id="bootPane" style="display:none"></div>
+
+      <div class="proto-wrap" id="agentPane" style="display:none">
+        <div class="empty" id="agentEmpty">
+          <div class="big">Agent deploys here.</div>
+          The chatbot goes live here when the prototype is ready — a working app, deployed to Daytona.
+        </div>
+        <iframe id="proto-frame" style="display:none;flex:1;border:none;width:100%;"></iframe>
+        <div class="proto-url" id="protoUrl"><span>🔗</span> <a id="protoLink" href="#" target="_blank"></a></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</div><!-- /consoleView -->
 
 <div class="toast" id="toast"></div>
 
 <script>
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-let recording = false;
-let recog = null;
-let whisperMode = false; // set from /api/state — true when a Nosana Whisper endpoint is configured
-let mediaStream = null;
-let recorder = null;
-let recTimer = null;
+// ===== state =====
+let recording = false, recog = null, whisperMode = false;
+let mediaStream = null, recorder = null, recTimer = null;
+let curSpeaker = "us"; // "us" or "client"
+let autoForge = true;
+let lastPrdLen = 0, lastUiLen = 0, lastPreviewUrl = null;
+let hadPrd = false; // true once we have PRD content — switches brief to PRD view
 
 // ===== toast =====
 let toastTimer;
@@ -126,20 +389,46 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.style.display = "none"), 5000);
 }
 
+// ===== calendar =====
+const today = new Date();
+const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+$("#calWhen").textContent = `${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][today.getDay()]}, ${today.getDate()} ${monthNames[today.getMonth()]} · 3:00 – 4:00 PM`;
+
+function openEvent() { $("#evPop").style.display = "block"; }
+function closeEvent() { $("#evPop").style.display = "none"; }
+function startMeeting() {
+  $("#calView").style.display = "none";
+  $("#consoleView").style.display = "block";
+}
+
+// ===== speaker toggle =====
+function setSpeaker(who) {
+  curSpeaker = who;
+  $("#sp-us").classList.toggle("sel", who === "us");
+  $("#sp-client").classList.toggle("sel", who === "client");
+  $("#sp-client").classList.toggle("client", who === "client");
+}
+
+// ===== transcript rendering =====
+function addTranscriptLine(text, speaker) {
+  const empty = $("#transcript .hint");
+  if (empty) empty.remove();
+  const div = document.createElement("div");
+  div.className = "tline";
+  const t = new Date().toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+  const whoLabel = speaker === "client" ? "Client" : "Us";
+  const whoClass = speaker === "client" ? "who client" : "who";
+  div.innerHTML = `<div class="tmeta"><span>${t}</span><span class="${whoClass}">${whoLabel}</span></div><div class="ttext">${esc(text)}</div>`;
+  $("#transcript").appendChild(div);
+  $("#transcript").scrollTop = 1e9;
+}
+
 // ===== speech recognition (Web Speech API, en-US) =====
-// displayOnly: in hybrid mode Web Speech only paints the instant grey
-// interim text (perceived realtime); the authoritative final transcript
-// comes from Whisper on the Nosana GPU.
 function initRecog(displayOnly = false) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { if (!displayOnly) toast("This browser lacks the Web Speech API — use Chrome."); return null; }
   const r = new SR();
   r.lang = "en-US"; r.continuous = true; r.interimResults = true;
-  // Restart with backoff. On some machines recognition dies instantly when
-  // MediaRecorder holds the mic (hybrid mode) — the old unconditional
-  // restart-on-end became a tight loop that pegged the CPU and froze the
-  // laptop. Now: rapid deaths back off, and after 5 in a row we give up
-  // (interim display is a nice-to-have; Whisper still transcribes).
   let lastStart = 0, rapidEnds = 0;
   r.onstart = () => { lastStart = Date.now(); };
   r.onresult = (e) => {
@@ -149,11 +438,12 @@ function initRecog(displayOnly = false) {
       if (res.isFinal) { if (!displayOnly) sendUtterance(res[0].transcript.trim()); }
       else interim += res[0].transcript;
     }
-    $("#interim") && $("#interim").remove();
+    $("#interim")?.remove();
     if (interim) {
       const div = document.createElement("div");
-      div.className = "utt interim"; div.id = "interim";
-      div.textContent = interim;
+      div.className = "tline"; div.id = "interim";
+      div.style.opacity = "0.5"; div.style.fontStyle = "italic";
+      div.innerHTML = `<div class="ttext">${esc(interim)}</div>`;
       $("#transcript").appendChild(div);
       $("#transcript").scrollTop = 1e9;
     }
@@ -162,7 +452,7 @@ function initRecog(displayOnly = false) {
   r.onend = () => {
     if (!recording) return;
     if (Date.now() - lastStart < 2000) rapidEnds += 1; else rapidEnds = 0;
-    if (rapidEnds >= 5) { console.warn("speech recognition unstable on this machine — live interim display disabled"); return; }
+    if (rapidEnds >= 5) { console.warn("speech recognition unstable — interim display disabled"); return; }
     setTimeout(() => { if (recording) try { r.start(); } catch {} }, rapidEnds ? 2500 : 300);
   };
   return r;
@@ -170,31 +460,18 @@ function initRecog(displayOnly = false) {
 
 async function sendUtterance(text) {
   if (!text) return;
-  addUtt(text);
+  addTranscriptLine(text, curSpeaker);
   try {
-    await fetch("/api/transcript", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    await fetch("/api/transcript", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ text, speaker: curSpeaker }) });
   } catch { toast("Failed to send transcript to server"); }
 }
 
-function addUtt(text) {
-  if ($("#transcript .empty")) $("#transcript").innerHTML = "";
-  const div = document.createElement("div");
-  div.className = "utt";
-  const t = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  div.innerHTML = `<div class="who">${t}</div>${esc(text)}`;
-  $("#transcript").appendChild(div);
-  $("#transcript").scrollTop = 1e9;
-}
-
-// ===== Whisper mode: record real audio, transcribe on the Nosana GPU.
-// MediaRecorder is restarted every chunk so each blob is a complete webm
-// file (continuation chunks lack container headers and can't be decoded).
+// ===== Whisper mode: record real audio, transcribe on Nosana GPU =====
 const CHUNK_MS = 4000;
 
 async function startWhisperRec() {
   mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   whisperLoop();
-  // Hybrid: run Web Speech alongside purely for the instant interim display.
   try { recog = initRecog(true); recog?.start(); } catch {}
 }
 
@@ -204,14 +481,12 @@ function whisperLoop() {
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
   recorder.onstop = async () => {
     const blob = new Blob(chunks, { type: "audio/webm" });
-    if (recording) whisperLoop(); // keep rolling while this chunk uploads
-    if (blob.size < 3000) return; // near-silence — skip the round trip
+    if (recording) whisperLoop();
+    if (blob.size < 3000) return;
     try {
-      const r = await fetch("/api/audio", {
-        method: "POST", headers: { "Content-Type": "audio/webm" }, body: blob,
-      });
+      const r = await fetch(`/api/audio?speaker=${curSpeaker}`, { method:"POST", headers:{"Content-Type":"audio/webm"}, body:blob });
       const d = await r.json();
-      if (d.text) addUtt(d.text);
+      if (d.text) addTranscriptLine(d.text, curSpeaker);
       else if (d.error) toast(d.error);
     } catch { toast("Failed to send audio to server"); }
   };
@@ -229,6 +504,7 @@ function stopWhisperRec() {
   $("#interim")?.remove();
 }
 
+// ===== record button =====
 $("#btn-rec").addEventListener("click", async () => {
   if (!recording) {
     if (whisperMode) {
@@ -239,123 +515,397 @@ $("#btn-rec").addEventListener("click", async () => {
       if (!recog) return;
       recording = true; recog.start();
     }
-    $("#btn-rec").textContent = "⏸ Stop"; $("#btn-rec").classList.add("rec"); $("#btn-rec").classList.remove("primary");
-    $("#rec-ind").textContent = whisperMode ? "● REC · Whisper@Nosana" : "● REC";
-    $("#rec-ind").style.color = "var(--danger)";
+    $("#btn-rec").textContent = "⏸ Stop";
+    $("#btn-rec").style.background = "var(--coral)"; $("#btn-rec").style.borderColor = "var(--coral)"; $("#btn-rec").style.color = "#fff";
+    updateStatus("recording", true);
+    $("#asr-tag").textContent = whisperMode ? "whisper · live" : "web speech · live";
   } else {
     recording = false;
     if (whisperMode) stopWhisperRec(); else recog.stop();
-    $("#btn-rec").textContent = "▶ Start Recording"; $("#btn-rec").classList.remove("rec"); $("#btn-rec").classList.add("primary");
-    $("#rec-ind").textContent = "";
+    $("#btn-rec").textContent = "▶ Record";
+    $("#btn-rec").style.background = "var(--ink)"; $("#btn-rec").style.borderColor = "var(--ink)"; $("#btn-rec").style.color = "var(--paper)";
+    updateStatus("idle", false);
+    $("#asr-tag").textContent = "";
   }
 });
 
+function updateStatus(text, isRec) {
+  $("#st-txt").textContent = text;
+  $("#st-pill").classList.toggle("rec", isRec);
+}
+
 // ===== actions =====
 async function post(url) {
-  const res = await fetch(url, { method: "POST" });
+  const res = await fetch(url, { method:"POST" });
   if (!res.ok) { const b = await res.json().catch(() => ({})); toast(b.error || ("Failed: " + url)); }
   return res.ok;
 }
-$("#btn-forge").addEventListener("click", () => { $("#btn-forge").disabled = true; post("/api/forge").finally(() => ($("#btn-forge").disabled = false)); });
 
-let autoForge = true;
+$("#btn-forge").addEventListener("click", () => {
+  $("#btn-forge").disabled = true;
+  showTab("agent"); showBootLog();
+  post("/api/forge").finally(() => $("#btn-forge").disabled = false);
+});
+
 $("#btn-auto").addEventListener("click", async () => {
   autoForge = !autoForge;
-  await fetch("/api/autoforge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: autoForge }) });
+  await fetch("/api/autoforge", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ enabled: autoForge }) });
   renderAutoBtn();
 });
 function renderAutoBtn() {
   $("#btn-auto").textContent = autoForge ? "🤖 Auto: ON" : "🤖 Auto: OFF";
-  $("#btn-auto").style.color = autoForge ? "var(--accent2)" : "var(--muted)";
+  $("#btn-auto").style.color = autoForge ? "var(--teal-deep)" : "var(--muted)";
 }
-$("#btn-reset").addEventListener("click", async () => { if (confirm("Start a new meeting? All current meeting data will be cleared.")) { await post("/api/reset"); location.reload(); } });
+
+$("#btn-reset").addEventListener("click", async () => {
+  if (confirm("Start a new meeting? All current data will be cleared.")) { await post("/api/reset"); location.reload(); }
+});
 
 // ===== tabs =====
-document.querySelectorAll(".tabbtns button").forEach((b) =>
-  b.addEventListener("click", () => {
-    document.querySelectorAll(".tabbtns button").forEach((x) => x.classList.remove("active"));
-    b.classList.add("active");
-    $("#tab-prd").style.display = b.dataset.tab === "prd" ? "" : "none";
-    $("#tab-proto").style.display = b.dataset.tab === "proto" ? "" : "none";
-  })
-);
+let curTab = "flow";
+function showPane(id) {
+  $("#flowPane").style.display = "none";
+  $("#bootPane").style.display = "none";
+  $("#agentPane").style.display = "none";
+  const target = $("#" + id);
+  if (target) target.style.display = id === "agentPane" ? "flex" : "block";
+}
 
-// ===== tiny markdown renderer (headers, bold, lists, tables) =====
-function md(src) {
+function showTab(which) {
+  curTab = which;
+  $("#tabFlow").classList.toggle("on", which === "flow");
+  $("#tabAgent").classList.toggle("on", which === "agent");
+
+  if (which === "flow") {
+    showPane("flowPane");
+  } else {
+    // Show boot log if currently forging, otherwise agent pane
+    if (forgeActive) showPane("bootPane");
+    else showPane("agentPane");
+  }
+}
+
+// ===== boot log (visual feedback during forge) =====
+let forgeActive = false, forgeTimer = null;
+
+function showBootLog() {
+  if (forgeActive) return; // already showing — poll loop won't reset it
+  forgeActive = true;
+  forgeStart = performance.now();
+  const boot = $("#bootPane");
+  boot.style.display = "block";
+  boot.innerHTML = '<div class="line big">⚡ FORGING — building from spec</div><div class="timer" id="forge-tm">0.0s</div>';
+  const start = performance.now();
+  forgeTimer = setInterval(() => {
+    const el = $("#forge-tm");
+    if (el) el.textContent = ((performance.now() - start) / 1000).toFixed(1) + "s";
+  }, 100);
+
+  const steps = [
+    ["refreshing structured notes…", "ok"],
+    ["generating PRD (Forge format §1–8)…", "ok"],
+    ["generating UI prototype…", "ok"],
+  ];
+  let i = 0;
+  function next() {
+    if (i >= steps.length || !forgeActive) return;
+    const [txt, cls] = steps[i++];
+    boot.insertAdjacentHTML("beforeend", `<div class="line">${cls ? '<span class="ok">✔</span> ' : '· '}${txt}</div>`);
+    boot.scrollTop = 1e9;
+    if (i < steps.length) setTimeout(next, 800);
+  }
+  setTimeout(next, 400);
+}
+
+function hideBootLog(url) {
+  forgeActive = false;
+  if (forgeTimer) { clearInterval(forgeTimer); forgeTimer = null; }
+  const boot = $("#bootPane");
+  if (boot.style.display !== "none") {
+    const elapsed = ((performance.now() - (forgeStart || performance.now())) / 1000).toFixed(1);
+    boot.insertAdjacentHTML("beforeend", `<div class="line big" style="margin-top:8px">→ <span class="ok">${url || "ready"}</span> · done in ${elapsed}s</div>`);
+    setTimeout(() => {
+      boot.style.display = "none";
+      boot.innerHTML = "";
+      if (curTab === "agent") showPane("agentPane");
+    }, 2000);
+  }
+}
+
+let forgeStart = 0;
+
+// ===== brief: build editorial sections from structured notes =====
+const briefSections = {}; // track which sections we've already rendered
+
+function buildBriefFromNotes(notes) {
+  if (!notes) return;
+  const sections = [];
+
+  // Only build headline once
+  if (!briefSections.head && (notes.summary || notes.requirements?.length)) {
+    briefSections.head = true;
+    const clientName = extractClientName(notes);
+    sections.push(`<div class="kicker">MEETING BRIEF · WRITTEN LIVE, FOR YOU</div>
+      <h1>${esc(clientName || "Client")}</h1>
+      <div class="sub">written while we talk — tell us if anything is wrong</div>`);
+  }
+
+  if (notes.summary && !briefSections.summary) {
+    briefSections.summary = true;
+    sections.push(`<div class="bsec on"><h3>Summary</h3><p>${esc(notes.summary)}</p></div>`);
+  }
+
+  if (notes.points?.length && !briefSections.points) {
+    briefSections.points = true;
+    sections.push(`<div class="bsec on"><h3>Key points</h3><ul>${notes.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul></div>`);
+  }
+
+  if (notes.requirements?.length && !briefSections.requirements) {
+    briefSections.requirements = true;
+    sections.push(`<div class="bsec on"><h3>What you need</h3><ul>${notes.requirements.map(r => `<li><span class="hl">${esc(r)}</span></li>`).join("")}</ul></div>`);
+  }
+
+  if (notes.decisions?.length && !briefSections.decisions) {
+    briefSections.decisions = true;
+    sections.push(`<div class="bsec on"><h3>What we agreed</h3><ul>${notes.decisions.map(d => `<li>${esc(d)}</li>`).join("")}</ul></div>`);
+  }
+
+  if (notes.action_items?.length && !briefSections.actions) {
+    briefSections.actions = true;
+    sections.push(`<div class="bsec on"><h3>Next steps</h3><ul>${notes.action_items.map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`);
+  }
+
+  if (sections.length) {
+    const brief = $("#brief");
+    if (!brief) { console.error("[brief] #brief element not found"); return; }
+    $("#brief-wait")?.remove();
+    console.log("[brief] rendering", sections.length, "sections — notes:", notes.summary?.slice(0, 40));
+    sections.forEach((html, i) => {
+      setTimeout(() => brief.insertAdjacentHTML("beforeend", html), i * 120);
+    });
+  }
+}
+
+function extractClientName(notes) {
+  // Try to find a business/client name from the summary or requirements
+  const text = [notes.summary, ...(notes.points || []), ...(notes.requirements || [])].join(" ");
+  // Common patterns: "X is a...", "We're X...", "at X..."
+  const m = text.match(/(?:at|for|called)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/);
+  return m ? m[1] : null;
+}
+
+// ===== brief: render PRD markdown (Forge format) =====
+function renderPrdToBrief(mdText) {
+  if (!mdText) return;
+  hadPrd = true;
+  $("#brief-wait")?.remove();
+
+  // Clear the editorial brief and replace with rendered PRD
+  const brief = $("#brief");
+  brief.innerHTML = '<div class="kicker">FULL PRD · FORGE FORMAT</div><div id="prd-rendered"></div>';
+
+  const html = mdToHtml(mdText);
+  $("#prd-rendered").innerHTML = html;
+}
+
+// ===== markdown → HTML (Forge-styled) =====
+function mdToHtml(src) {
   const lines = String(src).split("\n");
-  let html = "", inUl = false, inTable = false;
-  const flush = () => { if (inUl) { html += "</ul>"; inUl = false; } if (inTable) { html += "</table>"; inTable = false; } };
+  let html = "", inUl = false, inOl = false, inTable = false, inPre = false, preBuf = [];
+
+  const inline = (s) =>
+    esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+          .replace(/\*(.+?)\*/g, "<i>$1</i>")
+          .replace(/`(.+?)`/g, "<code>$1</code>");
+
+  const flushBlocks = () => {
+    if (inUl) { html += "</ul>"; inUl = false; }
+    if (inOl) { html += "</ol>"; inOl = false; }
+    if (inTable) { html += "</table>"; inTable = false; }
+    if (inPre) { html += "</pre>"; inPre = false; }
+  };
+
   for (const line of lines) {
     const l = line.trim();
-    const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`(.+?)`/g, "<code>$1</code>");
-    if (/^#{1,3}\s/.test(l)) { flush(); const n = l.match(/^#+/)[0].length; html += `<h${n}>${inline(l.replace(/^#+\s*/, ""))}</h${n}>`; }
-    else if (/^[-*]\s/.test(l)) { if (!inUl) { flush(); html += "<ul>"; inUl = true; } html += `<li>${inline(l.replace(/^[-*]\s*/, ""))}</li>`; }
+
+    // code fence
+    if (l.startsWith("```")) {
+      if (inPre) { html += `<pre>${preBuf.join("\n")}</pre>`; preBuf = []; inPre = false; }
+      else { flushBlocks(); inPre = true; }
+      continue;
+    }
+    if (inPre) { preBuf.push(line); continue; }
+
+    // headings
+    if (/^#{1,3}\s/.test(l)) {
+      flushBlocks();
+      const n = l.match(/^#+/)[0].length;
+      const tag = n === 1 ? "h2" : "h3";
+      html += `<div class="prd-section"><${tag}>${inline(l.replace(/^#+\s*/, ""))}</${tag}>`;
+    }
+    // unordered list
+    else if (/^[-*]\s/.test(l)) {
+      if (!inUl) { flushBlocks(); html += "<ul>"; inUl = true; }
+      html += `<li>${inline(l.replace(/^[-*]\s*/, ""))}</li>`;
+    }
+    // ordered list
+    else if (/^\d+\.\s/.test(l)) {
+      if (!inOl) { flushBlocks(); html += "<ol>"; inOl = true; }
+      html += `<li>${inline(l.replace(/^\d+\.\s*/, ""))}</li>`;
+    }
+    // table
     else if (/^\|/.test(l)) {
-      if (/^\|[\s\-|:]+\|$/.test(l)) continue; // separator row
-      if (!inTable) { flush(); html += "<table>"; inTable = true; }
+      if (/^\|[\s\-:|]+\|$/.test(l)) continue; // separator
+      if (!inTable) { flushBlocks(); html += "<table>"; inTable = true; }
       const cells = l.split("|").slice(1, -1).map((c) => inline(c.trim()));
       html += "<tr>" + cells.map((c) => `<td>${c}</td>`).join("") + "</tr>";
     }
-    else if (l === "") { flush(); }
-    else { flush(); html += `<p>${inline(l)}</p>`; }
+    // blank line
+    else if (l === "") { flushBlocks(); if (html.endsWith("</h2>") || html.endsWith("</h3>")) html += "</div>"; }
+    // paragraph
+    else {
+      flushBlocks();
+      html += `<p>${inline(l)}</p>`;
+    }
   }
-  flush();
+  flushBlocks();
   return html;
 }
 
-// ===== state polling =====
-let lastPrdLen = 0, lastUiAt = null, lastPreviewUrl = null, lastNotesJson = "";
+// ===== workflow: build nodes from notes =====
+function buildWorkflow(notes) {
+  if (!notes) return;
+  const nodes = [];
+  if (notes.requirements?.length) {
+    notes.requirements.forEach((r, i) => {
+      nodes.push({ text: r, cls: i === 0 ? "teal" : "" });
+    });
+  }
+  if (notes.action_items?.length) {
+    notes.action_items.forEach((a, i) => {
+      nodes.push({ text: a, cls: i === notes.action_items.length - 1 ? "flag" : "" });
+    });
+  }
+  if (nodes.length === 0) return;
 
-function renderNotes(n) {
-  if (!n.summary && !n.points?.length && !n.requirements?.length) return;
-  const j = JSON.stringify(n);
-  if (j === lastNotesJson) return; // unchanged — skip the DOM rebuild
-  lastNotesJson = j;
-  const sec = (title, items) =>
-    items?.length ? `<div class="note-sec"><h4>${title}</h4><ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul></div>` : "";
-  $("#notes").innerHTML =
-    (n.summary ? `<div class="summary-box">${esc(n.summary)}</div>` : "") +
-    sec("💡 Key points", n.points) +
-    sec("📌 Requirements", n.requirements) +
-    sec("✅ Action items", n.action_items) +
-    sec("🤝 Decisions", n.decisions);
+  $("#flowEmpty").style.display = "none";
+  const flow = $("#flow");
+  flow.style.display = "flex";
+
+  // Build nodes with arrows between them
+  let html = '<div class="fcol">';
+  nodes.forEach((n, i) => {
+    html += `<div class="fnode ${n.cls}" data-n="${i+1}"><b>${esc(n.text.slice(0, 60))}${n.text.length > 60 ? "…" : ""}</b></div>`;
+  });
+  html += '</div>';
+
+  // Insert arrows between nodes if we have more than 1
+  if (nodes.length > 1) {
+    // Rebuild with arrows
+    html = "";
+    nodes.forEach((n, i) => {
+      html += `<div class="fcol"><div class="fnode ${n.cls}" data-n="${i+1}"><b>${esc(n.text.slice(0, 60))}${n.text.length > 60 ? "…" : ""}</b></div></div>`;
+      if (i < nodes.length - 1) {
+        html += `<div class="farrow" data-n="a${i+1}"></div>`;
+      }
+    });
+  }
+
+  flow.innerHTML = html;
+
+  // Animate in
+  setTimeout(() => {
+    $$(".fnode").forEach((el, i) => setTimeout(() => el.classList.add("on"), i * 180));
+    $$(".farrow").forEach((el, i) => setTimeout(() => el.classList.add("on"), i * 180 + 90));
+  }, 100);
 }
+
+// ===== state polling =====
+let lastNotesJson = "";
 
 async function poll() {
   try {
     const s = await (await fetch("/api/state")).json();
+    console.log("[poll] notes={summary:" + (s.notes?.summary || "").slice(0, 30) + "... prdLen:" + s.prdLen + " uiLen:" + s.uiLen + " busy:" + JSON.stringify(s.busy) + " lastNotesChanged:" + (JSON.stringify(s.notes) !== lastNotesJson) + " hadPrd:" + hadPrd + " forgeActive:" + forgeActive + "}");
     whisperMode = !!s.whisperConfigured;
-    autoForge = !!s.autoForge; renderAutoBtn();
-    renderNotes(s.notes || {});
-    // Parallel bots: show everything that's running right now
+    if (!recording) {
+      autoForge = !!s.autoForge;
+      renderAutoBtn();
+    }
+
+    // Status pill
     const active = [
       s.busy.notes && "✍️ notes",
       s.busy.prd && "📄 PRD",
       s.busy.ui && "🎨 UI",
       s.busy.deploy && "🚀 deploy",
     ].filter(Boolean);
-    $("#st-notes").textContent = active.length ? active.join(" · ") + " ..." : "idle";
-    $("#st-notes").classList.toggle("busy", active.length > 0);
 
+    if (recording) {
+      updateStatus(active.length ? "recording · " + active.join(" · ") : "recording", true);
+    } else if (active.length) {
+      updateStatus(active.join(" · "), false);
+      $("#st-pill").classList.add("rec"); // use coral dot while busy
+    } else {
+      updateStatus("idle", false);
+    }
+
+    if (active.includes("📄 PRD") || active.includes("🎨 UI")) {
+      if (!forgeActive) { showBootLog(); forgeStart = performance.now(); }
+      $("#tabAgent").textContent = "⚡ forging…";
+    }
+
+    // Extract tag
+    if (active.length) {
+      $("#extract-tag").innerHTML = '<span class="shimmer">EXTRACTING</span>';
+    } else if (s.prdLen) {
+      $("#extract-tag").textContent = "spec.json ✓ · brief.md ✓";
+    }
+
+    // Notes → brief + workflow
+    if (s.notes) {
+      const j = JSON.stringify(s.notes);
+      if (j !== lastNotesJson) {
+        lastNotesJson = j;
+        if (!hadPrd) buildBriefFromNotes(s.notes);
+        buildWorkflow(s.notes);
+      }
+    }
+
+    // PRD → brief (replaces editorial view)
     if (s.prdLen && s.prdLen !== lastPrdLen) {
       lastPrdLen = s.prdLen;
       const prdText = await (await fetch("/api/prd")).text();
-      $("#prd-view").innerHTML = md(prdText);
+      if (prdText) renderPrdToBrief(prdText);
     }
 
+    // UI proto / Daytona deploy → agent tab
     const url = s.previewUrl || (s.uiLen ? "/preview" : null);
-    if (url && (url !== lastPreviewUrl || s.uiLen !== lastUiAt)) {
-      lastPreviewUrl = url; lastUiAt = s.uiLen;
-      $("#proto-empty").style.display = "none";
+    if (url && url !== lastPreviewUrl) {
+      lastPreviewUrl = url;
+      if (s.uiLen) lastUiLen = s.uiLen;
+      // Hide boot log when forge completes
+      if (forgeActive) {
+        hideBootLog(url);
+      }
+      // Show the iframe
+      $("#agentEmpty").style.display = "none";
       const f = $("#proto-frame");
       f.style.display = "block";
       f.src = url + (url === "/preview" ? "?t=" + Date.now() : "");
-      const a = $("#preview-link");
-      a.href = url; a.style.display = "inline";
+      const pl = $("#protoLink");
+      pl.href = url; pl.textContent = url;
+      $("#protoUrl").style.display = "block";
+      $("#tabAgent").textContent = "💬 Agent";
+      $("#tabAgent").disabled = false;
     }
+
     if (s.lastError) toast(s.lastError);
-  } catch {}
+  } catch (e) {
+    console.error("[poll]", e);
+  }
 }
+
 setInterval(poll, 2500);
 poll();
 </script>
