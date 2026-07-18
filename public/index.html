@@ -108,7 +108,7 @@
 
   /* ---------- panes ---------- */
   .cols { display:grid; grid-template-columns: 300px 1fr 1.25fr; height:calc(100vh - 58px); }
-  .pane { border-right:1px solid var(--hair); display:flex; flex-direction:column; min-width:0; }
+  .pane { border-right:1px solid var(--hair); display:flex; flex-direction:column; min-width:0; min-height:0; }
   .pane:last-child { border-right:none; }
   .phead { padding:13px 18px 11px; display:flex; align-items:baseline; gap:10px; border-bottom:1px solid var(--hair); }
   .phead h2 { font-family:var(--mono); font-size:10.5px; font-weight:500; letter-spacing:.18em; color:var(--muted); }
@@ -170,7 +170,7 @@
   .tab.on { background:#fff; color:var(--ink); border-color:var(--ink); position:relative; }
   .tab.on::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:#fff; }
   .tab:disabled { opacity:.4; }
-  .stage { flex:1; border-top:1px solid var(--ink); background:#fff; overflow:hidden; display:flex; flex-direction:column; }
+  .stage { flex:1; border-top:1px solid var(--ink); background:#fff; overflow:hidden; display:flex; flex-direction:column; min-height:0; }
 
   /* workflow */
   .flowwrap { flex:1; overflow:auto; padding:34px 26px; background:
@@ -193,6 +193,12 @@
   .farrow.on { animation:grow .3s ease forwards; }
   @keyframes grow { from { transform:scaleX(0);} to { opacity:1; transform:none; } }
   .farrow::after { content:""; position:absolute; right:-1px; top:-4px; border:5px solid transparent; border-left-color:var(--ink); }
+  .wfstage { background:rgba(255,255,255,.6); border:1px solid var(--hair); border-radius:12px;
+    padding:12px 12px 14px; min-width:150px; display:flex; flex-direction:column; gap:10px; }
+  .wfstage h5 { font-family:var(--mono); font-size:9.5px; font-weight:500; letter-spacing:.15em;
+    color:var(--muted); text-align:center; text-transform:uppercase; }
+  .wfstage .nodes { flex:1; display:flex; flex-direction:column; gap:12px; justify-content:center; }
+  .wfstage .fnode { width:158px; }
 
   /* boot log */
   .boot { flex:1; padding:30px; font-family:var(--mono); font-size:12.5px; background:var(--ink); color:#D8D4C8; overflow-y:auto; }
@@ -302,7 +308,6 @@
   <div class="spacer"></div>
   <div class="pill" id="st-pill"><span class="dot"></span><span id="st-txt">idle</span></div>
   <button class="pill" id="btn-auto" style="cursor:pointer;background:var(--paper-2);" title="Bots regenerate PRD + UI + deploy automatically while the client talks">🤖 Auto: ON</button>
-  <button class="btn forge" id="btn-forge" title="Run a full cycle now: notes → PRD + UI → deploy">⚡ Forge Now</button>
   <button class="btn play" id="btn-rec">▶ Record</button>
   <button class="pill" id="btn-reset" style="cursor:pointer;" title="New meeting">↺</button>
 </div>
@@ -312,10 +317,6 @@
   <!-- LEFT: transcript -->
   <div class="pane">
     <div class="phead"><h2>LIVE TRANSCRIPT</h2><span class="tag" id="asr-tag"></span></div>
-    <div class="speaker-row">
-      <button class="sel" id="sp-us" onclick="setSpeaker('us')">🎙 Us</button>
-      <button id="sp-client" onclick="setSpeaker('client')">🧑‍💼 Client</button>
-    </div>
     <div class="pbody" id="transcript">
       <div class="hint">Click <b>▶ Record</b> to capture the conversation.<br>Whisper streams the transcript here — the brief writes itself as the client talks.</div>
     </div>
@@ -379,7 +380,6 @@ let mediaStream = null, recorder = null, recTimer = null;
 let curSpeaker = "us"; // "us" or "client"
 let autoForge = true;
 let lastPrdLen = 0, lastUiLen = 0, lastPreviewUrl = null;
-let hadPrd = false; // true once we have PRD content — switches brief to PRD view
 
 // ===== toast =====
 let toastTimer;
@@ -401,14 +401,6 @@ function startMeeting() {
   $("#consoleView").style.display = "block";
 }
 
-// ===== speaker toggle =====
-function setSpeaker(who) {
-  curSpeaker = who;
-  $("#sp-us").classList.toggle("sel", who === "us");
-  $("#sp-client").classList.toggle("sel", who === "client");
-  $("#sp-client").classList.toggle("client", who === "client");
-}
-
 // ===== transcript rendering =====
 function addTranscriptLine(text, speaker) {
   const empty = $("#transcript .hint");
@@ -416,9 +408,7 @@ function addTranscriptLine(text, speaker) {
   const div = document.createElement("div");
   div.className = "tline";
   const t = new Date().toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
-  const whoLabel = speaker === "client" ? "Client" : "Us";
-  const whoClass = speaker === "client" ? "who client" : "who";
-  div.innerHTML = `<div class="tmeta"><span>${t}</span><span class="${whoClass}">${whoLabel}</span></div><div class="ttext">${esc(text)}</div>`;
+  div.innerHTML = `<div class="tmeta"><span>${t}</span></div><div class="ttext">${esc(text)}</div>`;
   $("#transcript").appendChild(div);
   $("#transcript").scrollTop = 1e9;
 }
@@ -541,12 +531,6 @@ async function post(url) {
   return res.ok;
 }
 
-$("#btn-forge").addEventListener("click", () => {
-  $("#btn-forge").disabled = true;
-  showTab("agent"); showBootLog();
-  post("/api/forge").finally(() => $("#btn-forge").disabled = false);
-});
-
 $("#btn-auto").addEventListener("click", async () => {
   autoForge = !autoForge;
   await fetch("/api/autoforge", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ enabled: autoForge }) });
@@ -601,11 +585,9 @@ function showBootLog() {
     if (el) el.textContent = ((performance.now() - start) / 1000).toFixed(1) + "s";
   }, 100);
 
-  const steps = [
-    ["refreshing structured notes…", "ok"],
-    ["generating PRD (Forge format §1–8)…", "ok"],
-    ["generating UI prototype…", "ok"],
-  ];
+  const steps = lastOutputType === "chatbot"
+    ? [["refreshing structured notes…", "ok"], ["injecting spec into WhatsApp agent…", "ok"], ["agent going live…", "ok"]]
+    : [["refreshing structured notes…", "ok"], ["generating PRD (Forge format §1–8)…", "ok"], ["generating UI prototype…", "ok"]];
   let i = 0;
   function next() {
     if (i >= steps.length || !forgeActive) return;
@@ -620,6 +602,8 @@ function showBootLog() {
 function hideBootLog(url) {
   forgeActive = false;
   if (forgeTimer) { clearInterval(forgeTimer); forgeTimer = null; }
+  $("#tabAgent").textContent = lastOutputType === "chatbot" ? "💬 WhatsApp" : "💬 Agent";
+  if (url) $("#tabAgent").disabled = false;
   const boot = $("#bootPane");
   if (boot.style.display !== "none") {
     const elapsed = ((performance.now() - (forgeStart || performance.now())) / 1000).toFixed(1);
@@ -633,200 +617,70 @@ function hideBootLog(url) {
 }
 
 let forgeStart = 0;
+let lastOutputType = "app";
 
-// ===== brief: build editorial sections from structured notes =====
-const briefSections = {}; // track which sections we've already rendered
-
+// ===== brief: customer-readable, rebuilt whenever the notes change =====
 function buildBriefFromNotes(notes) {
   if (!notes) return;
-  const sections = [];
-
-  // Only build headline once
-  if (!briefSections.head && (notes.summary || notes.requirements?.length)) {
-    briefSections.head = true;
-    const clientName = extractClientName(notes);
-    sections.push(`<div class="kicker">MEETING BRIEF · WRITTEN LIVE, FOR YOU</div>
-      <h1>${esc(clientName || "Client")}</h1>
-      <div class="sub">written while we talk — tell us if anything is wrong</div>`);
-  }
-
-  if (notes.summary && !briefSections.summary) {
-    briefSections.summary = true;
-    sections.push(`<div class="bsec on"><h3>Summary</h3><p>${esc(notes.summary)}</p></div>`);
-  }
-
-  if (notes.points?.length && !briefSections.points) {
-    briefSections.points = true;
-    sections.push(`<div class="bsec on"><h3>Key points</h3><ul>${notes.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul></div>`);
-  }
-
-  if (notes.requirements?.length && !briefSections.requirements) {
-    briefSections.requirements = true;
-    sections.push(`<div class="bsec on"><h3>What you need</h3><ul>${notes.requirements.map(r => `<li><span class="hl">${esc(r)}</span></li>`).join("")}</ul></div>`);
-  }
-
-  if (notes.decisions?.length && !briefSections.decisions) {
-    briefSections.decisions = true;
-    sections.push(`<div class="bsec on"><h3>What we agreed</h3><ul>${notes.decisions.map(d => `<li>${esc(d)}</li>`).join("")}</ul></div>`);
-  }
-
-  if (notes.action_items?.length && !briefSections.actions) {
-    briefSections.actions = true;
-    sections.push(`<div class="bsec on"><h3>Next steps</h3><ul>${notes.action_items.map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`);
-  }
-
-  if (sections.length) {
-    const brief = $("#brief");
-    if (!brief) { console.error("[brief] #brief element not found"); return; }
-    $("#brief-wait")?.remove();
-    console.log("[brief] rendering", sections.length, "sections — notes:", notes.summary?.slice(0, 40));
-    sections.forEach((html, i) => {
-      setTimeout(() => brief.insertAdjacentHTML("beforeend", html), i * 120);
-    });
-  }
+  if (!notes.summary && !notes.points?.length && !notes.requirements?.length) return;
+  const name = notes.business_name || "Client";
+  const sec = (title, inner) => inner ? `<div class="bsec on"><h3>${title}</h3>${inner}</div>` : "";
+  const ul = (items) => items?.length ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : "";
+  const html =
+    `<div class="kicker">MEETING BRIEF · WRITTEN LIVE, FOR YOU</div>
+     <h1>${esc(name)}</h1>
+     <div class="sub">written while we talk — tell us if anything is wrong</div>` +
+    sec("Where you are today", notes.summary ? `<p>${esc(notes.summary)}</p>` : "") +
+    sec("What's slowing you down", ul(notes.points)) +
+    sec("What you need", notes.requirements?.length
+      ? `<ul>${notes.requirements.map((r) => `<li><span class="hl">${esc(r)}</span></li>`).join("")}</ul>` : "") +
+    sec("What we agreed", ul(notes.decisions)) +
+    sec("Next steps", ul(notes.action_items));
+  $("#brief").innerHTML = html;
 }
 
-function extractClientName(notes) {
-  // Try to find a business/client name from the summary or requirements
-  const text = [notes.summary, ...(notes.points || []), ...(notes.requirements || [])].join(" ");
-  // Common patterns: "X is a...", "We're X...", "at X..."
-  const m = text.match(/(?:at|for|called)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})/);
-  return m ? m[1] : null;
-}
+// ===== workflow: simple staged diagram (Brief -> Create -> Review -> Deploy style) =====
+let lastWorkflowJson = "";
 
-// ===== brief: render PRD markdown (Forge format) =====
-function renderPrdToBrief(mdText) {
-  if (!mdText) return;
-  hadPrd = true;
-  $("#brief-wait")?.remove();
-
-  // Clear the editorial brief and replace with rendered PRD
-  const brief = $("#brief");
-  brief.innerHTML = '<div class="kicker">FULL PRD · FORGE FORMAT</div><div id="prd-rendered"></div>';
-
-  const html = mdToHtml(mdText);
-  $("#prd-rendered").innerHTML = html;
-}
-
-// ===== markdown → HTML (Forge-styled) =====
-function mdToHtml(src) {
-  const lines = String(src).split("\n");
-  let html = "", inUl = false, inOl = false, inTable = false, inPre = false, preBuf = [];
-
-  const inline = (s) =>
-    esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
-          .replace(/\*(.+?)\*/g, "<i>$1</i>")
-          .replace(/`(.+?)`/g, "<code>$1</code>");
-
-  const flushBlocks = () => {
-    if (inUl) { html += "</ul>"; inUl = false; }
-    if (inOl) { html += "</ol>"; inOl = false; }
-    if (inTable) { html += "</table>"; inTable = false; }
-    if (inPre) { html += "</pre>"; inPre = false; }
-  };
-
-  for (const line of lines) {
-    const l = line.trim();
-
-    // code fence
-    if (l.startsWith("```")) {
-      if (inPre) { html += `<pre>${preBuf.join("\n")}</pre>`; preBuf = []; inPre = false; }
-      else { flushBlocks(); inPre = true; }
-      continue;
-    }
-    if (inPre) { preBuf.push(line); continue; }
-
-    // headings
-    if (/^#{1,3}\s/.test(l)) {
-      flushBlocks();
-      const n = l.match(/^#+/)[0].length;
-      const tag = n === 1 ? "h2" : "h3";
-      html += `<div class="prd-section"><${tag}>${inline(l.replace(/^#+\s*/, ""))}</${tag}>`;
-    }
-    // unordered list
-    else if (/^[-*]\s/.test(l)) {
-      if (!inUl) { flushBlocks(); html += "<ul>"; inUl = true; }
-      html += `<li>${inline(l.replace(/^[-*]\s*/, ""))}</li>`;
-    }
-    // ordered list
-    else if (/^\d+\.\s/.test(l)) {
-      if (!inOl) { flushBlocks(); html += "<ol>"; inOl = true; }
-      html += `<li>${inline(l.replace(/^\d+\.\s*/, ""))}</li>`;
-    }
-    // table
-    else if (/^\|/.test(l)) {
-      if (/^\|[\s\-:|]+\|$/.test(l)) continue; // separator
-      if (!inTable) { flushBlocks(); html += "<table>"; inTable = true; }
-      const cells = l.split("|").slice(1, -1).map((c) => inline(c.trim()));
-      html += "<tr>" + cells.map((c) => `<td>${c}</td>`).join("") + "</tr>";
-    }
-    // blank line
-    else if (l === "") { flushBlocks(); if (html.endsWith("</h2>") || html.endsWith("</h3>")) html += "</div>"; }
-    // paragraph
-    else {
-      flushBlocks();
-      html += `<p>${inline(l)}</p>`;
-    }
-  }
-  flushBlocks();
-  return html;
-}
-
-// ===== workflow: build nodes from notes =====
 function buildWorkflow(notes) {
-  if (!notes) return;
-  const nodes = [];
-  if (notes.requirements?.length) {
-    notes.requirements.forEach((r, i) => {
-      nodes.push({ text: r, cls: i === 0 ? "teal" : "" });
-    });
-  }
-  if (notes.action_items?.length) {
-    notes.action_items.forEach((a, i) => {
-      nodes.push({ text: a, cls: i === notes.action_items.length - 1 ? "flag" : "" });
-    });
-  }
-  if (nodes.length === 0) return;
+  const stages = (notes?.workflow?.stages || []).filter((st) => st.steps?.length);
+  if (!stages.length) return;
+  const j = JSON.stringify(stages);
+  if (j === lastWorkflowJson) return; // unchanged — don't re-animate every poll
+  lastWorkflowJson = j;
 
   $("#flowEmpty").style.display = "none";
   const flow = $("#flow");
   flow.style.display = "flex";
 
-  // Build nodes with arrows between them
-  let html = '<div class="fcol">';
-  nodes.forEach((n, i) => {
-    html += `<div class="fnode ${n.cls}" data-n="${i+1}"><b>${esc(n.text.slice(0, 60))}${n.text.length > 60 ? "…" : ""}</b></div>`;
+  let html = "";
+  stages.forEach((st, i) => {
+    const accent = i === stages.length - 1 ? "teal" : "";
+    html += `<div class="wfstage"><h5>${esc(st.name)}</h5><div class="nodes">` +
+      st.steps.slice(0, 3).map((step) => {
+        if (typeof step === "string") return `<div class="fnode ${accent}"><b>${esc(step.slice(0, 26))}</b></div>`;
+        const sub = [step.actor, step.detail].filter(Boolean).join(" · ");
+        return `<div class="fnode ${accent}"><b>${esc(String(step.label || "").slice(0, 26))}</b>${sub ? `<span>${esc(sub)}</span>` : ""}</div>`;
+      }).join("") +
+      `</div></div>`;
+    if (i < stages.length - 1) html += `<div class="farrow"></div>`;
   });
-  html += '</div>';
-
-  // Insert arrows between nodes if we have more than 1
-  if (nodes.length > 1) {
-    // Rebuild with arrows
-    html = "";
-    nodes.forEach((n, i) => {
-      html += `<div class="fcol"><div class="fnode ${n.cls}" data-n="${i+1}"><b>${esc(n.text.slice(0, 60))}${n.text.length > 60 ? "…" : ""}</b></div></div>`;
-      if (i < nodes.length - 1) {
-        html += `<div class="farrow" data-n="a${i+1}"></div>`;
-      }
-    });
-  }
-
   flow.innerHTML = html;
 
-  // Animate in
   setTimeout(() => {
-    $$(".fnode").forEach((el, i) => setTimeout(() => el.classList.add("on"), i * 180));
-    $$(".farrow").forEach((el, i) => setTimeout(() => el.classList.add("on"), i * 180 + 90));
-  }, 100);
+    $$(".fnode").forEach((el, i) => setTimeout(() => el.classList.add("on"), i * 140));
+    $$(".farrow").forEach((el, i) => setTimeout(() => el.classList.add("on"), i * 140 + 80));
+  }, 60);
 }
 
 // ===== state polling =====
 let lastNotesJson = "";
+let lastToastedError = null;
 
 async function poll() {
   try {
     const s = await (await fetch("/api/state")).json();
-    console.log("[poll] notes={summary:" + (s.notes?.summary || "").slice(0, 30) + "... prdLen:" + s.prdLen + " uiLen:" + s.uiLen + " busy:" + JSON.stringify(s.busy) + " lastNotesChanged:" + (JSON.stringify(s.notes) !== lastNotesJson) + " hadPrd:" + hadPrd + " forgeActive:" + forgeActive + "}");
+    console.log("[poll] notes={summary:" + (s.notes?.summary || "").slice(0, 30) + "... prdLen:" + s.prdLen + " uiLen:" + s.uiLen + " busy:" + JSON.stringify(s.busy) + " lastNotesChanged:" + (JSON.stringify(s.notes) !== lastNotesJson) + " forgeActive:" + forgeActive + "}");
     whisperMode = !!s.whisperConfigured;
     if (!recording) {
       autoForge = !!s.autoForge;
@@ -850,6 +704,13 @@ async function poll() {
       updateStatus("idle", false);
     }
 
+    lastOutputType = s.outputType || "app";
+    // Forge finished (or failed) without a URL change — close the boot log.
+    // Chatbot mode: the agent is live as soon as the template URL exists; the
+    // PRD keeps generating in the background.
+    if (forgeActive && (s.outputType === "chatbot" && s.previewUrl || !s.busy.prd && !s.busy.ui && !s.busy.deploy)) {
+      hideBootLog(s.previewUrl);
+    }
     if (active.includes("📄 PRD") || active.includes("🎨 UI")) {
       if (!forgeActive) { showBootLog(); forgeStart = performance.now(); }
       $("#tabAgent").textContent = "⚡ forging…";
@@ -858,32 +719,29 @@ async function poll() {
     // Extract tag
     if (active.length) {
       $("#extract-tag").innerHTML = '<span class="shimmer">EXTRACTING</span>';
-    } else if (s.prdLen) {
-      $("#extract-tag").textContent = "spec.json ✓ · brief.md ✓";
+    } else if (!s.prdLen) {
+      $("#extract-tag").textContent = "";
     }
 
-    // Notes → brief + workflow
+    // Notes → brief + workflow (brief stays customer-readable; PRD is a link)
     if (s.notes) {
       const j = JSON.stringify(s.notes);
       if (j !== lastNotesJson) {
         lastNotesJson = j;
-        if (!hadPrd) buildBriefFromNotes(s.notes);
+        buildBriefFromNotes(s.notes);
         buildWorkflow(s.notes);
       }
     }
 
-    // PRD → brief (replaces editorial view)
     if (s.prdLen && s.prdLen !== lastPrdLen) {
       lastPrdLen = s.prdLen;
-      const prdText = await (await fetch("/api/prd")).text();
-      if (prdText) renderPrdToBrief(prdText);
+      $("#extract-tag").innerHTML = '<a href="/api/prd" target="_blank" style="color:var(--teal)">consultant PRD ↗</a>';
     }
 
     // UI proto / Daytona deploy → agent tab
     const url = s.previewUrl || (s.uiLen ? "/preview" : null);
-    if (url && url !== lastPreviewUrl) {
-      lastPreviewUrl = url;
-      if (s.uiLen) lastUiLen = s.uiLen;
+    if (url && (url !== lastPreviewUrl || s.uiLen !== lastUiLen)) {
+      lastPreviewUrl = url; lastUiLen = s.uiLen;
       // Hide boot log when forge completes
       if (forgeActive) {
         hideBootLog(url);
@@ -896,11 +754,11 @@ async function poll() {
       const pl = $("#protoLink");
       pl.href = url; pl.textContent = url;
       $("#protoUrl").style.display = "block";
-      $("#tabAgent").textContent = "💬 Agent";
+      $("#tabAgent").textContent = s.outputType === "chatbot" ? "💬 WhatsApp" : "💬 Agent";
       $("#tabAgent").disabled = false;
     }
 
-    if (s.lastError) toast(s.lastError);
+    if (s.lastError && s.lastError !== lastToastedError) { lastToastedError = s.lastError; toast(s.lastError); }
   } catch (e) {
     console.error("[poll]", e);
   }

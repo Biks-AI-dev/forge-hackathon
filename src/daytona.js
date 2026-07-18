@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,7 +12,7 @@ const DATA_DIR = path.join(ROOT, "data");
 // daytona-test project) — reuse it via a small script instead of
 // re-implementing the REST API in Node. Override with NOTULA_PYTHON if the
 // venv lives elsewhere.
-const PYTHON = process.env.NOTULA_PYTHON || "/var/www/daytona-test/.venv/bin/python";
+const PYTHON = process.env.NOTULA_PYTHON || "python3";
 
 export function isDaytonaConfigured() {
   return Boolean(config.daytonaApiKey);
@@ -23,8 +23,12 @@ export function isDaytonaConfigured() {
  * signed preview URL. Reuses one sandbox across deploys (id cached in
  * data/.sandbox_id) so repeat generations are fast.
  */
+let sdkOk = null; // checked once per process
+
 export async function deployPreview(html) {
   if (!isDaytonaConfigured()) throw new Error("DAYTONA_API_KEY is not set in .env");
+  if (sdkOk === null) sdkOk = spawnSync(PYTHON, ["-c", "import daytona"]).status === 0;
+  if (!sdkOk) throw new Error("daytona SDK not installed — showing local preview instead (pip install daytona)");
 
   await mkdir(DATA_DIR, { recursive: true });
   const htmlPath = path.join(DATA_DIR, "prototype.html");
@@ -36,6 +40,9 @@ export async function deployPreview(html) {
     });
     let out = "";
     let err = "";
+    // Without this, a missing Python binary emits an unhandled 'error' event
+    // and takes down the whole server mid-forge.
+    child.on("error", (e) => reject(new Error(`spawn ${PYTHON}: ${e.message}`)));
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (err += d));
     child.on("close", (code) => {

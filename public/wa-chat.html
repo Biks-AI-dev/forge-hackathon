@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp — forged agent</title>
+<style>
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:#EFE7DB; display:flex; flex-direction:column; }
+  .top { background:#075E54; color:#fff; padding:10px 14px; display:flex; align-items:center; gap:11px; flex:none; }
+  .ava { width:38px; height:38px; border-radius:50%; background:#25D366; display:flex; align-items:center; justify-content:center; font-size:19px; flex:none; }
+  .top .name { font-weight:600; font-size:15px; }
+  .top .sub { font-size:11.5px; opacity:.8; }
+  .top .ledger { margin-left:auto; font-size:11px; background:rgba(255,255,255,.15); border:none; color:#fff; border-radius:12px; padding:5px 10px; cursor:pointer; }
+  .chat { flex:1; overflow-y:auto; padding:14px 12px;
+    background-image:radial-gradient(circle at 20% 30%, rgba(0,0,0,.015) 0 2px, transparent 2px); }
+  .msg { max-width:78%; border-radius:9px; padding:7px 10px 5px; margin-bottom:7px; font-size:13.5px; line-height:1.45;
+    box-shadow:0 1px 1px rgba(0,0,0,.1); white-space:pre-wrap; word-wrap:break-word; position:relative; clear:both; }
+  .in  { background:#fff; float:left; border-top-left-radius:2px; }
+  .out { background:#DDF3D4; float:right; border-top-right-radius:2px; }
+  .msg img { max-width:100%; border-radius:6px; margin-bottom:4px; display:block; }
+  .meta { font-size:10px; color:#8a8a8a; text-align:right; margin-top:2px; }
+  .rec { display:inline-block; font-size:10.5px; color:#075E54; background:#e4f0ee; border-radius:8px; padding:1px 7px; margin-top:4px; }
+  .typing { color:#8a8a8a; font-style:italic; font-size:12.5px; padding:4px 8px; float:left; clear:both; }
+  .bar { background:#F0F0F0; padding:8px 10px; display:flex; gap:8px; align-items:flex-end; flex:none; }
+  .bar textarea { flex:1; border:none; border-radius:20px; padding:10px 14px; font:inherit; font-size:13.5px; resize:none;
+    max-height:90px; background:#fff; outline:none; }
+  .bar button { border:none; background:#075E54; color:#fff; width:40px; height:40px; border-radius:50%; font-size:17px; cursor:pointer; flex:none; }
+  .bar .att { background:#fff; color:#54656F; border:1px solid #ddd; }
+  .err { color:#C2492E; font-size:12px; padding:2px 8px; float:left; clear:both; }
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="ava">🤖</div>
+  <div><div class="name" id="bizName">Assistant</div><div class="sub" id="bizSub">online · forged from your meeting</div></div>
+  <button class="ledger" id="ledgerBtn" title="Records written by the agent">📒 ledger: <span id="ledgerN">0</span></button>
+</div>
+<div class="chat" id="chat"></div>
+<div class="bar">
+  <button class="att" id="attBtn" title="Attach image (receipt, closing, statement)">📎</button>
+  <input type="file" id="file" accept="image/*" style="display:none">
+  <textarea id="input" rows="1" placeholder="Type a message"></textarea>
+  <button id="send">➤</button>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const chatEl = $("chat");
+let pendingImage = null;
+let ledgerCount = 0;
+
+const now = () => new Date().toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+
+function bubble(side, text, imgSrc, recorded) {
+  const d = document.createElement("div");
+  d.className = "msg " + side;
+  if (imgSrc) { const im = document.createElement("img"); im.src = imgSrc; d.appendChild(im); }
+  if (text) d.appendChild(document.createTextNode(text));
+  const meta = document.createElement("div"); meta.className = "meta"; meta.textContent = now();
+  d.appendChild(meta);
+  if (recorded) {
+    const r = document.createElement("div"); r.className = "rec";
+    r.textContent = "📒 " + recorded + " record" + (recorded > 1 ? "s" : "") + " saved to ledger";
+    d.appendChild(r);
+    ledgerCount += recorded; $("ledgerN").textContent = ledgerCount;
+  }
+  chatEl.appendChild(d); chatEl.scrollTop = 1e9;
+}
+
+async function send(text, image) {
+  if (!text && !image) return;
+  bubble("out", text, image);
+  const t = document.createElement("div"); t.className = "typing"; t.textContent = "typing…";
+  chatEl.appendChild(t); chatEl.scrollTop = 1e9;
+  try {
+    const r = await fetch("/api/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, image }),
+    });
+    const d = await r.json();
+    t.remove();
+    if (d.error) { const e = document.createElement("div"); e.className = "err"; e.textContent = d.error; chatEl.appendChild(e); return; }
+    bubble("in", d.reply, null, d.recorded);
+  } catch (e) {
+    t.remove();
+    const el = document.createElement("div"); el.className = "err"; el.textContent = "network error — try again"; chatEl.appendChild(el);
+  }
+}
+
+$("send").addEventListener("click", () => {
+  const text = $("input").value.trim();
+  const img = pendingImage; pendingImage = null; $("attBtn").textContent = "📎";
+  $("input").value = "";
+  send(text, img);
+});
+$("input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("send").click(); }
+});
+$("attBtn").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", () => {
+  const f = $("file").files[0]; if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { pendingImage = rd.result; $("attBtn").textContent = "🖼️"; };
+  rd.readAsDataURL(f);
+  $("file").value = "";
+});
+
+// Business name from meeting state + halo greeting from the real agent.
+(async () => {
+  let lang = "en";
+  try {
+    const s = await (await fetch("/api/state")).json();
+    const biz = s.notes?.business_name || "Assistant";
+    lang = s.notes?.meeting_language === "id" ? "id" : "en";
+    $("bizName").textContent = biz + " AI";
+    document.title = biz + " — WhatsApp";
+  } catch {}
+  send(lang === "id" ? "halo" : "hello");
+})();
+</script>
+</body>
+</html>

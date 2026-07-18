@@ -1,8 +1,9 @@
 import express from "express";
 import path from "node:path";
+import { appendFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
-import { updateNotes, generatePRD, generateUI } from "./llm.js";
+import { updateNotes, generatePRD, generateUI, chatAsBusiness } from "./llm.js";
 import { deployPreview, isDaytonaConfigured } from "./daytona.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -21,6 +22,7 @@ const state = {
   lastError: null,
   charsSinceNotes: 0,
   autoForge: true, // the "many bots" mode: PRD + UI keep regenerating as the client talks
+  chatHistory: [], // the forged agent's WhatsApp conversation ({role, content})
   lastForgeAt: null,
 };
 
@@ -128,7 +130,7 @@ async function runDeployBot() {
 // Every cycle: if the conversation grew enough, refresh notes, then let the
 // PRD bot and UI bot run IN PARALLEL, then ship the new UI to Daytona.
 // Nobody presses anything; the artifacts just keep catching up.
-const FORGE_INTERVAL_MS = 45_000;
+const FORGE_INTERVAL_MS = 15_000; // safety net; the real trigger is notes-refresh below
 const MIN_NEW_CHARS_TO_FORGE = 120;
 let forgedChars = 0;
 
@@ -140,6 +142,13 @@ async function forgeCycle(force = false) {
   state.lastForgeAt = Date.now();
 
   await refreshNotes();
+  if (state.notes.output_type === "chatbot") {
+    // Conversational solution: the agent IS the deliverable. Spec injection,
+    // no UI codegen, no sandbox — the WhatsApp template talks to /api/chat.
+    state.previewUrl = "/wa-chat.html";
+    await runPrdBot();
+    return;
+  }
   await Promise.allSettled([runPrdBot(), runUiBot()]);
   await runDeployBot();
 }
@@ -150,7 +159,7 @@ setInterval(() => {
 
 export function createApp() {
   const app = express();
-  app.use(express.json({ limit: "2mb" }));
+  app.use(express.json({ limit: "12mb" }));
 
   // Light status for the 2.5s poll — the heavyweight payloads (full PRD
   // markdown, generated UI html, transcript) are NOT included; the frontend
@@ -169,6 +178,7 @@ export function createApp() {
       transcriptCount: state.transcript.length,
       daytonaConfigured: isDaytonaConfigured(),
       whisperConfigured: Boolean(config.nosanaWhisperUrl),
+      outputType: state.notes.output_type || "app",
     });
   });
 
@@ -196,7 +206,8 @@ export function createApp() {
       if (text) {
         state.transcript.push({ speaker, text, at: Date.now(), analyzed: false });
         state.charsSinceNotes += text.length;
-        if (state.charsSinceNotes >= NOTES_TRIGGER_CHARS) refreshNotes(); // fire & forget
+        if (state.charsSinceNotes >= NOTES_TRIGGER_CHARS)
+          refreshNotes().then(() => { if (state.autoForge) forgeCycle().catch((e) => console.error("[forge]", e.message)); });
       }
       res.json({ ok: true, text });
     } catch (err) {
@@ -210,7 +221,8 @@ export function createApp() {
     if (!text?.trim()) return res.status(400).json({ error: "text required" });
     state.transcript.push({ speaker: speaker || "Speaker", text: text.trim(), at: Date.now(), analyzed: false });
     state.charsSinceNotes += text.length;
-    if (state.charsSinceNotes >= NOTES_TRIGGER_CHARS) refreshNotes(); // fire & forget
+    if (state.charsSinceNotes >= NOTES_TRIGGER_CHARS)
+      refreshNotes().then(() => { if (state.autoForge) forgeCycle().catch((e) => console.error("[forge]", e.message)); });
     res.json({ ok: true });
   });
 
@@ -254,6 +266,44 @@ export function createApp() {
     res.json({ ok: true, url: state.previewUrl });
   });
 
+  // The forged agent: real replies as the client's business (spec injection).
+  // [RECORD]{json} lines in the reply are stripped and appended to the ledger
+  // (data/ledger.jsonl — swap for Google Sheets when creds are wired in).
+  app.post("/api/chat", async (req, res) => {
+    const { message, image } = req.body || {};
+    if (!message?.trim() && !image) return res.status(400).json({ error: "message or image required" });
+    try {
+      const raw = await chatAsBusiness(state.notes, state.prd, state.chatHistory, message?.trim() || "", image);
+      const records = [];
+      const reply = raw
+        .split("\n")
+        .filter((line) => {
+          const m = line.match(/^\s*\[RECORD\]\s*(\{.*\})\s*$/);
+          if (!m) return true;
+          try { records.push(JSON.parse(m[1])); } catch {}
+          return false;
+        })
+        .join("\n")
+        .trim();
+      if (records.length) {
+        const dir = path.join(__dirname, "..", "data");
+        await mkdir(dir, { recursive: true });
+        await appendFile(
+          path.join(dir, "ledger.jsonl"),
+          records.map((r) => JSON.stringify({ at: new Date().toISOString(), ...r })).join("\n") + "\n"
+        );
+      }
+      state.chatHistory.push(
+        { role: "user", content: message?.trim() || "(image)" },
+        { role: "assistant", content: reply }
+      );
+      res.json({ reply, recorded: records.length });
+    } catch (err) {
+      console.error("[chat]", err.message);
+      res.status(502).json({ error: err.message });
+    }
+  });
+
   app.post("/api/reset", (req, res) => {
     meetingEpoch += 1;
     state.transcript = [];
@@ -264,6 +314,7 @@ export function createApp() {
     state.lastError = null;
     state.charsSinceNotes = 0;
     state.lastForgeAt = null;
+    state.chatHistory = [];
     forgedChars = 0;
     lastDeployedUi = null;
     res.json({ ok: true });
