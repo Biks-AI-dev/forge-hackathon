@@ -1,18 +1,20 @@
 # Demo script · the baba use case
 
-Nura plays "Pak Dharma", owner of **Dapoer Nusantara** (fictional, 2 outlets, Denpasar). Painpoints mirror our reconciliation pilot. Total stage time ~4 minutes. Record the meeting part ONCE tonight as the backup fixture; do it live on stage if nerves allow.
+Nura plays "Pak Dharma", owner of **Dapoer Nusantara** (fictional, 2 outlets, Denpasar). Painpoints mirror our reconciliation pilot. Total stage time ~4 minutes. Record one take (any take, natural speech) as the backup + dev test audio; live on stage also works.
 
-## Beat 1 · The meeting (~90 seconds, recorded or live)
+## Beat 1 · The meeting (~90 seconds, spoken NATURALLY)
 
-Pak Dharma talks, the FDE (Adith or dev) just listens and nods. Script, natural Bahasa, keep the numbers EXACTLY as written because the extractor and fixtures depend on them:
+**No script to memorize. Nura knows these painpoints by heart (it is the baba story).** Talk exactly like the real Bali Banana meetings. The extractor handles free speech; the numbers live in the FILES (Beat 2), so nothing spoken needs to be precise.
 
-> "Jadi saya punya warung makan, Dapoer Nusantara, dua outlet di Denpasar. Ramai sih, sehari bisa enam jutaan satu outlet. Tapi masalah saya bukan jualan, masalah saya itu tiap pagi. Admin saya, Mbak Sari, itu tiap pagi buka mutasi BCA, terus cocokin satu-satu sama closing-an SPG semalam. Dua sampai tiga jam tiap hari, mas.
->
-> Uang masuknya kan macem-macem. Ada cash, ada QRIS, ada GoFood, GrabFood, ada yang transfer langsung. Yang bikin pusing, angkanya nggak pernah sama persis. QRIS itu kepotong dikit, yang online-online itu potongannya gede, dua puluh persen kayaknya. Terus GoFood itu masuknya bukan besoknya langsung, kadang lusa. Jadi tiap hari pasti ada selisih, dan Mbak Sari harus nebak-nebak ini selisih normal apa ada yang hilang.
->
-> Bulan lalu sempet ada beda tujuh ratus ribu, dua hari baru ketemu, ternyata settlement telat sama ada biaya admin. Capek, mas. Saya cuma pengen tiap pagi ada yang bilang: ini semua cocok, ini masih di jalan, yang ini tolong dicek."
+Just make sure the story TOUCHES these 5 things (any words, any order):
 
-Why these lines: they hand the Listener every spec field: business name, 2 outlets, channels (cash/QRIS/GoFood/GrabFood/transfer), fee ballparks (small for QRIS, "20%" for online), settlement delay (GoFood H+1/H+2), the admin's name, the hours lost (2-3/day), and the desired outcome in his words (matched / in-transit / check-this). The Analyst turns those into the matrix; the Architect into the spec.
+1. An F&B business with a couple of outlets/branches
+2. Money comes in many ways: cash, QRIS, GoFood, GrabFood, transfer
+3. The morning pain: admin matches the bank mutasi against last night's closings, by hand
+4. Roughly how long it takes (a few hours, every day)
+5. What he wants: "tell me what matches, what's still coming, what to check"
+
+If he skips fee percentages, fine: the Architect fills standard rates marked "asumsi" and the confirm screen shows them. That IS a feature moment, not a gap.
 
 ## Beat 2 · Files handed over (~15 seconds)
 

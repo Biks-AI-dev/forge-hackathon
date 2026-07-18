@@ -18,7 +18,7 @@ Team: **Nura + Tracy in the room (Singapore)** · **Ghaly (Dev A) + Reva (Dev B)
 
 | Who | Owns |
 |---|---|
-| Nura | Beat-1 meeting recording (tonight), the roleplay, the 2-min delivery, sponsor relationships |
+| Nura | Beat-1 recording (natural speech, no script), the roleplay, the 2-min delivery, sponsor relationships |
 | Tracy | Gate calls + scope cuts, relaying sponsor keys, running the demo machine, backup recording, timeboxing |
 | Ghaly (Dev A) | Provisioner (spec → Daytona → URL) + the recon engine port (he built the production one) |
 | Reva (Dev B) | Sandbox agent template + Kimi + halo greeting + chat page; Daytona setup (his notes → `SANDBOX_SETUP.md`) |
@@ -27,7 +27,7 @@ Team: **Nura + Tracy in the room (Singapore)** · **Ghaly (Dev A) + Reva (Dev B)
 ## Before kickoff, 18 Jul morning (do these NOW)
 
 - [ ] Everyone: `git pull`, read `PRD.md`, `DEMO_SCRIPT.md`, open `demo-storyboard.html` in a browser
-- [ ] **Nura: record Beat 1** (the meeting monologue in DEMO_SCRIPT.md), one take, numbers exactly as written, drop in WA - in the taxi is fine
+- [ ] **Nura: record Beat 1** - talk NATURALLY about the baba painpoints you know by heart (5 points to touch are in DEMO_SCRIPT.md; no memorizing, the files carry the numbers). One take, drop in WA - in the taxi is fine
 - [ ] Reva: PR the Daytona setup notes as `SANDBOX_SETUP.md`
 - [ ] Ghaly: skim the production recon engine + `test-data/recon/EXPECTED_OUTPUT.md`
 - [ ] Tracy: read this file twice; tomorrow she calls gates and cuts scope
