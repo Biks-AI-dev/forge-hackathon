@@ -240,7 +240,7 @@ export async function extractForgeSpec(notes, transcriptTail) {
           '- "sales": the pain is taking orders/customer chats, price lists, recording sales\n' +
           "Reply with STRICT JSON only:\n" +
           '{"workflow":"recon|sales",' +
-          '"persona":{"agent_name":"short friendly bot name","language":"id|en","owner_name":"how to address the owner (e.g. Pak Dharma)","admin_name":"the admin/staff name if mentioned"},' +
+          '"persona":{"agent_name":"short friendly bot name","language":"id|en","owner_name":"how the owner was addressed IN THIS MEETING; if no name was spoken use just Pak or Bu — NEVER invent a name","admin_name":"the admin/staff name ONLY if spoken; else the word admin"},' +
           '"business":{"name":"...","outlets":["..."],"bank":"..."},' +
           '"painpoint":"ONE sentence, in the meeting language, describing the daily pain in the client\'s own words (used to greet them, so make it specific: who, what, how long)",' +
           '"channels":[{"name":"CASH|QRIS|GOFOOD|GRABFOOD|TRANSFER|...","fee_rate":0.007,"settle_days":1}] (recon only; omit fee_rate if not stated in the meeting),' +
