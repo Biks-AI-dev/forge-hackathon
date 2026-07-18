@@ -11,6 +11,10 @@ export const config = {
   // UI generation wants THROUGHPUT, not deep thinking — a fast non-thinking
   // model turns a 5-minute wait into ~1 minute at comparable UI quality.
   kimiUiModel: process.env.KIMI_UI_MODEL || process.env.KIMI_MODEL || "kimi-k2-0711-preview",
+  // Used only when the forged agent receives an image (OCR). kimi-k2.7-code
+  // also has vision but currently returns degenerate output on ai& — swap via
+  // KIMI_VISION_MODEL once fixed.
+  kimiVisionModel: process.env.KIMI_VISION_MODEL || "google/gemma-4-31b-it",
 
   // Whisper ASR service running on a Nosana GPU deployment (whisper-asr-webservice).
   // When set, the frontend records real audio and transcribes via this endpoint

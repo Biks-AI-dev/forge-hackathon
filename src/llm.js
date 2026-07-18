@@ -72,7 +72,18 @@ export async function updateNotes(currentNotes, newChunk) {
           '"points": ["key point", ...], ' +
           '"requirements": ["product/feature requirement the client mentioned", ...], ' +
           '"action_items": ["task + owner (if mentioned)", ...], ' +
-          '"decisions": ["decision that was agreed on", ...]}',
+          '"decisions": ["decision that was agreed on", ...], ' +
+          '"business_name": "client business name if mentioned, else \\"\\"", ' +
+          '"meeting_language": "en or id — the language the meeting is mostly held in", ' +
+          '"output_type": "chatbot or app", ' +
+          '"workflow": {"stages": [{"name": "ONE word stage name (e.g. Input, Match, Review, Report)", ' +
+          '"steps": [{"label": "1-3 words", "actor": "who does it (a person mentioned, AI Assistant, Owner, System)", "detail": "3-6 words: from what to what"}, ...]}, ...]}}\n' +
+          "output_type: chatbot whenever the solution talks to people — WhatsApp, chat, messaging, replying " +
+          "to customers/staff, reconciliation via chat. app ONLY when the client explicitly needs a " +
+          "dashboard/tool UI and no conversation. When in doubt: chatbot.\n" +
+          "The workflow is the client's future process with the solution: 3-5 stages, 1-3 steps each. " +
+          "Every step says WHO does WHAT (e.g. {\"label\":\"Send Closing\",\"actor\":\"Sari\",\"detail\":\"shift receipt → WhatsApp\"}). " +
+          "Keep it stable between updates — only change it when the conversation genuinely changes the process.",
       },
       {
         role: "user",
@@ -95,21 +106,24 @@ export async function updateNotes(currentNotes, newChunk) {
  * can be reviewed and revised independently of the LLM client.
  */
 export async function generatePRD(notes, transcriptTail) {
-  return chat(
-    [
-      { role: "system", content: FORGE_PRD_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content:
-          `Structured meeting notes:\n${JSON.stringify(notes, null, 2)}\n\n` +
-          `Latest transcript excerpt (extra context):\n${transcriptTail}`,
-      },
-    ],
-    // The Forge PRD template produces a longer document than the generic one
-    // (ASCII diagrams, multi-column tables, screen-by-screen walkthrough).
-    // 20k tokens gives the thinking model room to reason + output the full doc.
-    { temperature: 0.4, model: config.kimiSmartModel, maxTokens: 20000, timeoutMs: 300_000 }
-  );
+  const messages = [
+    { role: "system", content: FORGE_PRD_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content:
+        `Structured meeting notes:\n${JSON.stringify(notes, null, 2)}\n\n` +
+        `Latest transcript excerpt (extra context):\n${transcriptTail}`,
+    },
+  ];
+  try {
+    return await chat(messages, { temperature: 0.4, model: config.kimiSmartModel, maxTokens: 32000, timeoutMs: 300_000 });
+  } catch (err) {
+    // Thinking models sometimes burn the whole budget reasoning and emit
+    // nothing — fall back to the fast non-thinking model rather than failing.
+    if (!/ran out of tokens|empty content/.test(err.message)) throw err;
+    console.warn("[prd] smart model overran, falling back to", config.kimiModel);
+    return chat(messages, { temperature: 0.4, model: config.kimiModel, maxTokens: 16000, timeoutMs: 240_000 });
+  }
 }
 
 /**
@@ -140,4 +154,41 @@ export async function generateUI(notes, prd) {
   );
 
   return stripFence(raw);
+}
+
+/**
+ * The forged agent itself: replies AS the client's business assistant.
+ * Spec injection (notes + PRD excerpt), never codegen. Actions the model can
+ * take: append a [RECORD]{json} line — the server strips it and writes it to
+ * the ledger (data/ledger.jsonl; swap for Google Sheets when creds exist).
+ * An attached image (data URL) is passed as vision content for OCR.
+ */
+export async function chatAsBusiness(notes, prd, history, userText, imageDataUrl) {
+  const biz = notes.business_name || "the business";
+  const system =
+    `You are the AI assistant of ${biz}, live in their WhatsApp. You were configured from a ` +
+    `discovery meeting — this spec is your ONLY source of truth about the business:\n` +
+    `${JSON.stringify(notes)}\n` +
+    (prd ? `PRD excerpt:\n${prd.slice(0, 3000)}\n` : "") +
+    `Rules:\n` +
+    `- Act as the business's own assistant talking to its staff/customers. Warm, brief, WhatsApp tone.\n` +
+    `- Speak ${notes.meeting_language === "id" ? "Bahasa Indonesia" : "English"} by default (the meeting's language); ` +
+    `switch only if the user writes in the other language.\n` +
+    `- NEVER invent numbers, prices, or balances. If the spec doesn't contain it, say you'll check with the owner.\n` +
+    `- Never confirm a payment as received without owner verification — say it's being verified.\n` +
+    `- If the user sends an image (receipt, closing, statement): read every number out of it (OCR), ` +
+    `echo the extracted figures back for confirmation, then record them.\n` +
+    `- When a transaction/order/closing/statement should be saved, append as the LAST line:\n` +
+    `[RECORD] {"type":"...","items":...,"amounts":...}\n` +
+    `That line is machine-parsed and written to the business ledger — keep it valid single-line JSON.`;
+
+  const content = imageDataUrl
+    ? [{ type: "text", text: userText || "(image attached)" }, { type: "image_url", image_url: { url: imageDataUrl } }]
+    : userText;
+
+  return chat(
+    [{ role: "system", content: system }, ...history.slice(-12), { role: "user", content }],
+    { temperature: 0.4, maxTokens: 1500, timeoutMs: 90_000,
+      ...(imageDataUrl ? { model: config.kimiVisionModel } : {}) }
+  );
 }
