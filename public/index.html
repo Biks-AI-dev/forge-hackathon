@@ -355,11 +355,15 @@
 
       <div class="proto-wrap" id="agentPane" style="display:none">
         <div class="empty" id="agentEmpty">
-          <div class="big">Agent deploys here.</div>
-          The chatbot goes live here when the prototype is ready — a working app, deployed to Daytona.
+          <div class="big">Your AI employee is born here.</div>
+          Forged live from this meeting: it greets the client by name, knows their painpoint, and works — every number computed by code, never guessed.
         </div>
         <iframe id="proto-frame" style="display:none;flex:1;border:none;width:100%;"></iframe>
-        <div class="proto-url" id="protoUrl"><span>🔗</span> <a id="protoLink" href="#" target="_blank"></a></div>
+        <div class="proto-url" id="protoUrl">
+          <span>🔗</span> <a id="protoLink" href="#" target="_blank"></a>
+          <button id="handoverBtn" onclick="handover()" style="margin-left:auto;border:1px solid var(--teal);background:var(--teal);color:#fff;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">📲 Handover — client's own link</button>
+          <span id="sandboxWrap" style="display:none">· <a id="sandboxLink" href="#" target="_blank" style="color:var(--teal);font-weight:600"></a> <small id="sandboxStale" style="color:var(--amber,#B45309);display:none">spec changed — handover again</small></span>
+        </div>
       </div>
 
     </div>
@@ -418,7 +422,7 @@ function initRecog(displayOnly = false) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { if (!displayOnly) toast("This browser lacks the Web Speech API — use Chrome."); return null; }
   const r = new SR();
-  r.lang = "en-US"; r.continuous = true; r.interimResults = true;
+  r.lang = "id-ID"; r.continuous = true; r.interimResults = true; // Bahasa-first (Whisper mode is the primary path anyway)
   let lastStart = 0, rapidEnds = 0;
   r.onstart = () => { lastStart = Date.now(); };
   r.onresult = (e) => {
@@ -545,6 +549,23 @@ $("#btn-reset").addEventListener("click", async () => {
   if (confirm("Start a new meeting? All current data will be cleared.")) { await post("/api/reset"); location.reload(); }
 });
 
+// ===== THE HANDOVER: clone the employee into the client's own sandbox =====
+async function handover() {
+  const btn = $("#handoverBtn");
+  btn.disabled = true; btn.textContent = "📲 provisioning client sandbox…";
+  try {
+    const r = await fetch("/api/handover", { method: "POST" });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    toast("Client sandbox live — send them the link 📲");
+  } catch (e) {
+    toast("Handover failed: " + e.message);
+    btn.textContent = "📲 Handover — client's own link";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ===== tabs =====
 let curTab = "flow";
 function showPane(id) {
@@ -585,9 +606,12 @@ function showBootLog() {
     if (el) el.textContent = ((performance.now() - start) / 1000).toFixed(1) + "s";
   }, 100);
 
-  const steps = lastOutputType === "chatbot"
-    ? [["refreshing structured notes…", "ok"], ["injecting spec into WhatsApp agent…", "ok"], ["agent going live…", "ok"]]
-    : [["refreshing structured notes…", "ok"], ["generating PRD (Forge format §1–8)…", "ok"], ["generating UI prototype…", "ok"]];
+  const steps = [
+    ["refreshing structured notes…", "ok"],
+    ["routing painpoint → production workflow library…", "ok"],
+    ["stamping the client's ForgeSpec…", "ok"],
+    ["AI employee going live…", "ok"],
+  ];
   let i = 0;
   function next() {
     if (i >= steps.length || !forgeActive) return;
@@ -602,7 +626,7 @@ function showBootLog() {
 function hideBootLog(url) {
   forgeActive = false;
   if (forgeTimer) { clearInterval(forgeTimer); forgeTimer = null; }
-  $("#tabAgent").textContent = lastOutputType === "chatbot" ? "💬 WhatsApp" : "💬 Agent";
+  $("#tabAgent").textContent = "💬 AI Employee";
   if (url) $("#tabAgent").disabled = false;
   const boot = $("#bootPane");
   if (boot.style.display !== "none") {
@@ -691,8 +715,8 @@ async function poll() {
     const active = [
       s.busy.notes && "✍️ notes",
       s.busy.prd && "📄 PRD",
-      s.busy.ui && "🎨 UI",
-      s.busy.deploy && "🚀 deploy",
+      s.busy.spec && "🤖 forging employee",
+      s.busy.sandbox && "📲 handover",
     ].filter(Boolean);
 
     if (recording) {
@@ -708,10 +732,10 @@ async function poll() {
     // Forge finished (or failed) without a URL change — close the boot log.
     // Chatbot mode: the agent is live as soon as the template URL exists; the
     // PRD keeps generating in the background.
-    if (forgeActive && (s.outputType === "chatbot" && s.previewUrl || !s.busy.prd && !s.busy.ui && !s.busy.deploy)) {
+    if (forgeActive && (s.previewUrl || (!s.busy.prd && !s.busy.spec))) {
       hideBootLog(s.previewUrl);
     }
-    if (active.includes("📄 PRD") || active.includes("🎨 UI")) {
+    if ((active.includes("📄 PRD") || active.includes("🤖 forging employee")) && !s.previewUrl) {
       if (!forgeActive) { showBootLog(); forgeStart = performance.now(); }
       $("#tabAgent").textContent = "⚡ forging…";
     }
@@ -754,8 +778,17 @@ async function poll() {
       const pl = $("#protoLink");
       pl.href = url; pl.textContent = url;
       $("#protoUrl").style.display = "block";
-      $("#tabAgent").textContent = s.outputType === "chatbot" ? "💬 WhatsApp" : "💬 Agent";
+      $("#tabAgent").textContent = "💬 AI Employee";
       $("#tabAgent").disabled = false;
+    }
+
+    // Client sandbox link (the handover result) + stale badge after refinements
+    if (s.sandboxUrl) {
+      $("#sandboxWrap").style.display = "inline";
+      const sl = $("#sandboxLink");
+      sl.href = s.sandboxUrl; sl.textContent = "client sandbox ↗";
+      $("#sandboxStale").style.display = s.sandboxStale ? "inline" : "none";
+      $("#handoverBtn").textContent = s.sandboxStale ? "📲 Re-handover (spec changed)" : "📲 Handover done ✓";
     }
 
     if (s.lastError && s.lastError !== lastToastedError) { lastToastedError = s.lastError; toast(s.lastError); }

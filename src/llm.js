@@ -75,12 +75,8 @@ export async function updateNotes(currentNotes, newChunk) {
           '"decisions": ["decision that was agreed on", ...], ' +
           '"business_name": "client business name if mentioned, else \\"\\"", ' +
           '"meeting_language": "en or id — the language the meeting is mostly held in", ' +
-          '"output_type": "chatbot or app", ' +
           '"workflow": {"stages": [{"name": "ONE word stage name (e.g. Input, Match, Review, Report)", ' +
           '"steps": [{"label": "1-3 words", "actor": "who does it (a person mentioned, AI Assistant, Owner, System)", "detail": "3-6 words: from what to what"}, ...]}, ...]}}\n' +
-          "output_type: chatbot whenever the solution talks to people — WhatsApp, chat, messaging, replying " +
-          "to customers/staff, reconciliation via chat. app ONLY when the client explicitly needs a " +
-          "dashboard/tool UI and no conversation. When in doubt: chatbot.\n" +
           "The workflow is the client's future process with the solution: 3-5 stages, 1-3 steps each. " +
           "Every step says WHO does WHAT (e.g. {\"label\":\"Send Closing\",\"actor\":\"Sari\",\"detail\":\"shift receipt → WhatsApp\"}). " +
           "Keep it stable between updates — only change it when the conversation genuinely changes the process.",
@@ -126,69 +122,142 @@ export async function generatePRD(notes, transcriptTail) {
   }
 }
 
-/**
- * One self-contained HTML file implementing a clickable UI prototype of what
- * the client asked for. Single file so it can be served/deployed anywhere
- * (local /preview or a Daytona sandbox) with zero build step.
- */
-export async function generateUI(notes, prd) {
+// ===== the Architect: meeting notes -> ForgeSpec (the contract the agent runs on) =====
+// The LLM proposes; this code disposes. Every field is validated and defaulted
+// here so a malformed extraction can never produce a broken agent.
+
+const STANDARD_FEES = {
+  QRIS: { fee_rate: 0.007, settle_days: 1 },
+  GOFOOD: { fee_rate: 0.2, settle_days: 2 },
+  GRABFOOD: { fee_rate: 0.2, settle_days: 1 },
+  SHOPEEFOOD: { fee_rate: 0.2, settle_days: 1 },
+  TRANSFER: { fee_rate: 0, settle_days: 0 },
+  EDC: { fee_rate: 0.02, settle_days: 1 },
+};
+
+function routeWorkflow(candidate, textBlob) {
+  if (candidate === "recon" || candidate === "sales") return candidate;
+  // keyword fallback so the router never leaves the library
+  const t = textBlob.toLowerCase();
+  const reconHits = (t.match(/rekonsiliasi|mutasi|closing|settlement|bank statement|reconcil|selisih|cocokin|selis/g) || []).length;
+  const salesHits = (t.match(/pesanan|order|menu|katalog|catalogue|harga|price list|jualan|customer chat/g) || []).length;
+  return salesHits > reconHits ? "sales" : "recon";
+}
+
+export function validateForgeSpec(raw, notes, textBlob) {
+  const spec = typeof raw === "object" && raw !== null ? raw : {};
+  spec.workflow = routeWorkflow(spec.workflow, textBlob || JSON.stringify(notes));
+
+  const persona = (spec.persona ||= {});
+  persona.language ||= notes.meeting_language === "id" ? "id" : "en";
+  persona.owner_name ||= "Owner";
+  persona.admin_name ||= "admin";
+
+  const biz = (spec.business ||= {});
+  biz.name ||= notes.business_name || "Bisnis Anda";
+  persona.agent_name ||= `${biz.name.split(/\s+/)[0]} AI`;
+
+  if (!spec.painpoint) {
+    spec.painpoint = notes.points?.[0] || notes.summary || "";
+  }
+
+  if (spec.workflow === "recon") {
+    let channels = Array.isArray(spec.channels) ? spec.channels : [];
+    channels = channels
+      .filter((c) => c && c.name)
+      .map((c) => {
+        const name = String(c.name).toUpperCase().replace(/[^A-Z]/g, "");
+        const std = STANDARD_FEES[name];
+        const out = { name, hits_bank: c.hits_bank !== false && name !== "CASH" };
+        if (name === "CASH") out.hits_bank = false;
+        if (out.hits_bank) {
+          if (typeof c.fee_rate === "number" && c.fee_rate >= 0 && c.fee_rate < 0.5) {
+            out.fee_rate = c.fee_rate;
+          } else if (std) {
+            out.fee_rate = std.fee_rate;
+            out.assumed = true;
+          } else {
+            out.fee_rate = 0;
+            out.assumed = true;
+          }
+          out.settle_days = Number.isInteger(c.settle_days) ? c.settle_days : std?.settle_days ?? 0;
+        }
+        return out;
+      });
+    if (channels.length === 0) {
+      channels = ["CASH", "QRIS", "GOFOOD", "GRABFOOD", "TRANSFER"].map((name) => {
+        const std = STANDARD_FEES[name];
+        return name === "CASH"
+          ? { name, hits_bank: false }
+          : { name, hits_bank: true, ...std, assumed: true };
+      });
+    }
+    spec.channels = channels;
+    delete spec.products;
+  } else {
+    const products = (spec.products ||= {});
+    products.store ||= {};
+    products.store.name ||= biz.name;
+    let cats = Array.isArray(products.categories) ? products.categories : [];
+    cats = cats
+      .map((cat) => ({
+        name: cat?.name || "Menu",
+        variants: (cat?.variants || [])
+          .filter((v) => v && v.name && Number(v.price) > 0)
+          .map((v) => ({
+            id: v.id || v.name.slice(0, 8).toUpperCase().replace(/\s+/g, "-"),
+            name: v.name,
+            price: Number(v.price),
+            aliases: Array.isArray(v.aliases) ? v.aliases : [],
+          })),
+      }))
+      .filter((cat) => cat.variants.length > 0);
+    products.categories = cats; // empty catalogue is allowed: agent says "menu menyusul", owner fills it in
+    delete spec.channels;
+  }
+
+  spec.slug = String(biz.name)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "client";
+  return spec;
+}
+
+export async function extractForgeSpec(notes, transcriptTail) {
   const raw = await chat(
     [
       {
         role: "system",
         content:
-          "You are a frontend engineer. Build ONE complete HTML file (inline CSS + JS, no external " +
-          "libraries, no CDNs) that is a clickable UI prototype of the described product, entirely in " +
-          "English. Modern, clean, responsive, with plausible dummy data matching the client's domain. " +
-          "Every main button/menu must do something (at minimum navigate between views with JS). Reply " +
-          "with ONLY the HTML code — no explanation, no markdown fence.",
+          "You are the Architect in the Biks Forge. From meeting notes + transcript, produce the " +
+          "ForgeSpec JSON that configures the client's AI employee. Choose the workflow from the " +
+          "production library:\n" +
+          '- "recon": the pain is matching bank statements/mutasi against sales closings, settlements, fees\n' +
+          '- "sales": the pain is taking orders/customer chats, price lists, recording sales\n' +
+          "Reply with STRICT JSON only:\n" +
+          '{"workflow":"recon|sales",' +
+          '"persona":{"agent_name":"short friendly bot name","language":"id|en","owner_name":"how to address the owner (e.g. Pak Dharma)","admin_name":"the admin/staff name if mentioned"},' +
+          '"business":{"name":"...","outlets":["..."],"bank":"..."},' +
+          '"painpoint":"ONE sentence, in the meeting language, describing the daily pain in the client\'s own words (used to greet them, so make it specific: who, what, how long)",' +
+          '"channels":[{"name":"CASH|QRIS|GOFOOD|GRABFOOD|TRANSFER|...","fee_rate":0.007,"settle_days":1}] (recon only; omit fee_rate if not stated in the meeting),' +
+          '"products":{"store":{"name":"..."},"categories":[{"name":"...","variants":[{"name":"...","price":35000,"aliases":["..."]}]}]} (sales only; prices ONLY if explicitly stated)\n' +
+          "Never invent numbers: omit any fee/price not said in the meeting.",
       },
       {
         role: "user",
         content:
           `Meeting notes:\n${JSON.stringify(notes, null, 2)}\n\n` +
-          (prd ? `PRD:\n${prd.slice(0, 6000)}` : "(No PRD yet — use the meeting notes alone)"),
+          `Transcript tail:\n${transcriptTail}`,
       },
     ],
-    { temperature: 0.5, model: config.kimiUiModel, maxTokens: 16000, timeoutMs: 180_000 }
+    { temperature: 0.2, maxTokens: 2500, timeoutMs: 90_000 }
   );
-
-  return stripFence(raw);
-}
-
-/**
- * The forged agent itself: replies AS the client's business assistant.
- * Spec injection (notes + PRD excerpt), never codegen. Actions the model can
- * take: append a [RECORD]{json} line — the server strips it and writes it to
- * the ledger (data/ledger.jsonl; swap for Google Sheets when creds exist).
- * An attached image (data URL) is passed as vision content for OCR.
- */
-export async function chatAsBusiness(notes, prd, history, userText, imageDataUrl) {
-  const biz = notes.business_name || "the business";
-  const system =
-    `You are the AI assistant of ${biz}, live in their WhatsApp. You were configured from a ` +
-    `discovery meeting — this spec is your ONLY source of truth about the business:\n` +
-    `${JSON.stringify(notes)}\n` +
-    (prd ? `PRD excerpt:\n${prd.slice(0, 3000)}\n` : "") +
-    `Rules:\n` +
-    `- Act as the business's own assistant talking to its staff/customers. Warm, brief, WhatsApp tone.\n` +
-    `- Speak ${notes.meeting_language === "id" ? "Bahasa Indonesia" : "English"} by default (the meeting's language); ` +
-    `switch only if the user writes in the other language.\n` +
-    `- NEVER invent numbers, prices, or balances. If the spec doesn't contain it, say you'll check with the owner.\n` +
-    `- Never confirm a payment as received without owner verification — say it's being verified.\n` +
-    `- If the user sends an image (receipt, closing, statement): read every number out of it (OCR), ` +
-    `echo the extracted figures back for confirmation, then record them.\n` +
-    `- When a transaction/order/closing/statement should be saved, append as the LAST line:\n` +
-    `[RECORD] {"type":"...","items":...,"amounts":...}\n` +
-    `That line is machine-parsed and written to the business ledger — keep it valid single-line JSON.`;
-
-  const content = imageDataUrl
-    ? [{ type: "text", text: userText || "(image attached)" }, { type: "image_url", image_url: { url: imageDataUrl } }]
-    : userText;
-
-  return chat(
-    [{ role: "system", content: system }, ...history.slice(-12), { role: "user", content }],
-    { temperature: 0.4, maxTokens: 1500, timeoutMs: 90_000,
-      ...(imageDataUrl ? { model: config.kimiVisionModel } : {}) }
-  );
+  let parsed = {};
+  try {
+    parsed = JSON.parse(stripFence(raw));
+  } catch {
+    // validateForgeSpec fills a safe default spec from the notes alone
+  }
+  return validateForgeSpec(parsed, notes, `${JSON.stringify(notes)}\n${transcriptTail}`);
 }

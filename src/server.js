@@ -1,38 +1,44 @@
 import express from "express";
 import path from "node:path";
-import { appendFile, mkdir } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
-import { updateNotes, generatePRD, generateUI, chatAsBusiness } from "./llm.js";
-import { deployPreview, isDaytonaConfigured } from "./daytona.js";
+import { updateNotes, generatePRD, extractForgeSpec, validateForgeSpec } from "./llm.js";
+import { forgeSandbox, isDaytonaConfigured } from "./daytona.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(__dirname, "..");
+const AGENTS_DIR = path.join(ROOT, "data", "agents");
+const AGENT_TEMPLATE = path.join(ROOT, "agent-template", "server.py");
+const PYTHON = process.env.NOTULA_PYTHON || (process.platform === "win32" ? "python" : "python3");
 
 const EMPTY_NOTES = { summary: "", points: [], requirements: [], action_items: [], decisions: [] };
 
-// Single-meeting in-memory state — a hackathon demo runs one meeting at a
-// time; restart the server for a fresh one (or hit /api/reset).
+// Single-meeting in-memory state — one meeting at a time; /api/reset for a
+// fresh one. The forged agent itself is a separate process (see below), so a
+// meeting reset never kills a client's ongoing test chat mid-sentence unless
+// a new spec replaces it.
 const state = {
   transcript: [], // { speaker, text, at }
   notes: structuredClone(EMPTY_NOTES),
   prd: null,
-  ui: null,
-  previewUrl: null,
-  busy: { notes: false, prd: false, ui: false, deploy: false },
+  spec: null, // the ForgeSpec — THE contract; everything the agent knows
+  previewUrl: null, // local employee chat, once forged
+  sandboxUrl: null, // per-client isolated sandbox (Daytona), after handover
+  sandboxId: null,
+  sandboxStale: false, // spec changed after last handover
+  busy: { notes: false, prd: false, spec: false, sandbox: false },
   lastError: null,
   charsSinceNotes: 0,
-  autoForge: true, // the "many bots" mode: PRD + UI keep regenerating as the client talks
-  chatHistory: [], // the forged agent's WhatsApp conversation ({role, content})
+  autoForge: true,
   lastForgeAt: null,
 };
 
-// Bumped by /api/reset. Bots capture the epoch when they start and discard
-// their result if a reset happened mid-generation — otherwise an in-flight
-// bot from the previous meeting writes stale artifacts into the fresh one.
 let meetingEpoch = 0;
 
 // ===== incremental note-taking =====
-const NOTES_TRIGGER_CHARS = 220; // update notes roughly every ~2-3 sentences
+const NOTES_TRIGGER_CHARS = 220;
 
 let notesInflight = null;
 
@@ -45,7 +51,7 @@ async function runNotesPass() {
   const chunk = pending.map((t) => t.text).join("\n");
   try {
     const updated = await updateNotes(state.notes, chunk);
-    if (epoch !== meetingEpoch) return; // meeting was reset mid-flight
+    if (epoch !== meetingEpoch) return;
     state.notes = updated;
     pending.forEach((t) => (t.analyzed = true));
     state.charsSinceNotes = 0;
@@ -58,10 +64,6 @@ async function runNotesPass() {
   }
 }
 
-// Serialized: a caller that arrives mid-pass WAITS for it, then runs another
-// pass if new transcript landed meanwhile — so "refresh then generate PRD"
-// always sees up-to-date notes instead of silently skipping (the old
-// fire-and-forget guard returned stale notes in exactly that race).
 async function refreshNotes() {
   while (notesInflight) await notesInflight.catch(() => {});
   if (!state.transcript.some((t) => !t.analyzed)) return;
@@ -73,7 +75,7 @@ async function refreshNotes() {
   }
 }
 
-// ===== generation bots (shared by routes and the auto-forge loop) =====
+// ===== generation bots =====
 
 async function runPrdBot() {
   if (state.busy.prd) return;
@@ -91,46 +93,94 @@ async function runPrdBot() {
   }
 }
 
-async function runUiBot() {
-  if (state.busy.ui) return;
+// The Architect + the Builder: meeting -> ForgeSpec -> running AI employee.
+// The spec is extracted by the LLM but validated/defaulted in code
+// (llm.js validateForgeSpec); the agent process itself never lets the LLM
+// touch a number (agent-template/server.py: understand -> decide -> speak).
+async function runSpecBot() {
+  if (state.busy.spec) return;
   const epoch = meetingEpoch;
-  state.busy.ui = true;
+  state.busy.spec = true;
   try {
-    // Uses whatever PRD exists right now — it catches up next cycle. That's
-    // the point of the forge loop: parallel bots, artifacts converge.
-    const ui = await generateUI(state.notes, state.prd);
-    if (epoch === meetingEpoch) state.ui = ui;
+    const tail = state.transcript.slice(-30).map((t) => t.text).join("\n");
+    const spec = await extractForgeSpec(state.notes, tail);
+    if (epoch !== meetingEpoch) return;
+    const changed = JSON.stringify(spec) !== JSON.stringify(state.spec);
+    state.spec = spec;
+    if (changed) {
+      state.sandboxStale = Boolean(state.sandboxUrl);
+      await deployLocalAgent(spec);
+    }
   } catch (err) {
-    console.error("[ui]", err.message);
-    if (epoch === meetingEpoch) state.lastError = `ui: ${err.message}`;
+    console.error("[spec]", err.message);
+    if (epoch === meetingEpoch) state.lastError = `spec: ${err.message}`;
   } finally {
-    state.busy.ui = false;
+    state.busy.spec = false;
   }
 }
 
-let lastDeployedUi = null;
+// ===== the local AI employee (instant test instance) =====
+// One python process running the SAME agent-template that ships to the
+// client sandbox. Local instance gets the Kimi env so the voice step is on;
+// in the sandbox the agent runs template-only (no egress there) — either way
+// every number comes from code.
+const AGENT_PORT = Number(process.env.AGENT_PORT || 4300);
+let agentChild = null;
+let agentDir = null;
 
-async function runDeployBot() {
-  if (!state.ui || state.busy.deploy || !isDaytonaConfigured()) return;
-  if (state.ui === lastDeployedUi) return; // nothing new to ship
-  state.busy.deploy = true;
-  try {
-    const { url } = await deployPreview(state.ui);
-    state.previewUrl = url;
-    lastDeployedUi = state.ui;
-  } catch (err) {
-    console.error("[deploy]", err.message);
-    state.lastError = `deploy: ${err.message}`;
-  } finally {
-    state.busy.deploy = false;
+async function specDir(spec) {
+  const dir = path.join(AGENTS_DIR, spec.slug);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, "spec.json"), JSON.stringify(spec, null, 2));
+  return dir;
+}
+
+async function deployLocalAgent(spec) {
+  agentDir = await specDir(spec);
+  if (agentChild) {
+    agentChild.removeAllListeners("exit");
+    agentChild.kill();
+    agentChild = null;
   }
+  const child = spawn(PYTHON, [AGENT_TEMPLATE], {
+    cwd: agentDir,
+    env: {
+      ...process.env,
+      PORT: String(AGENT_PORT),
+      KIMI_API_KEY: config.kimiApiKey,
+      KIMI_BASE_URL: config.kimiBaseUrl,
+      KIMI_MODEL: config.kimiModel,
+    },
+  });
+  child.stderr.on("data", (d) => console.error("[agent]", String(d).trim()));
+  child.on("error", (e) => console.error("[agent] spawn:", e.message));
+  child.on("exit", (code) => {
+    if (agentChild === child) {
+      agentChild = null;
+      if (code) console.error(`[agent] exited ${code}`);
+    }
+  });
+  agentChild = child;
+  // wait for /health so previewUrl is only shown when the employee answers
+  for (let i = 0; i < 20; i++) {
+    try {
+      const r = await fetch(`http://127.0.0.1:${AGENT_PORT}/health`, { signal: AbortSignal.timeout(500) });
+      if (r.ok) {
+        state.previewUrl = "/employee";
+        console.log(`[agent] ${spec.persona.agent_name} for ${spec.business.name} live on :${AGENT_PORT}`);
+        return;
+      }
+    } catch {}
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  throw new Error("local agent did not come up on :" + AGENT_PORT);
 }
 
 // ===== auto-forge loop =====
-// Every cycle: if the conversation grew enough, refresh notes, then let the
-// PRD bot and UI bot run IN PARALLEL, then ship the new UI to Daytona.
-// Nobody presses anything; the artifacts just keep catching up.
-const FORGE_INTERVAL_MS = 15_000; // safety net; the real trigger is notes-refresh below
+// Notes refresh -> PRD + ForgeSpec (which re-stamps the local employee).
+// The Daytona handover is explicit (/api/handover): sandboxes take ~a minute
+// and belong to the moment the FDE sends the client THEIR link.
+const FORGE_INTERVAL_MS = 15_000;
 const MIN_NEW_CHARS_TO_FORGE = 120;
 let forgedChars = 0;
 
@@ -142,43 +192,50 @@ async function forgeCycle(force = false) {
   state.lastForgeAt = Date.now();
 
   await refreshNotes();
-  if (state.notes.output_type === "chatbot") {
-    // Conversational solution: the agent IS the deliverable. Spec injection,
-    // no UI codegen, no sandbox — the WhatsApp template talks to /api/chat.
-    state.previewUrl = "/wa-chat.html";
-    await runPrdBot();
-    return;
-  }
-  await Promise.allSettled([runPrdBot(), runUiBot()]);
-  await runDeployBot();
+  if (!state.notes.summary) return; // nothing understood yet
+  await Promise.allSettled([runPrdBot(), runSpecBot()]);
 }
 
 setInterval(() => {
   if (state.autoForge) forgeCycle().catch((err) => console.error("[forge]", err.message));
 }, FORGE_INTERVAL_MS);
 
+// ===== tiny proxy to the local employee =====
+async function agentProxy(res, agentPath, init) {
+  try {
+    const r = await fetch(`http://127.0.0.1:${AGENT_PORT}${agentPath}`, init);
+    const body = await r.text();
+    res.status(r.status).type(r.headers.get("content-type") || "text/plain").send(body);
+  } catch {
+    res
+      .status(503)
+      .type("html")
+      .send("<p style='font-family:sans-serif'>Belum ada AI employee — jalankan meeting dulu, dia lahir dari situ. 🙂</p>");
+  }
+}
+
 export function createApp() {
   const app = express();
   app.use(express.json({ limit: "12mb" }));
 
-  // Light status for the 2.5s poll — the heavyweight payloads (full PRD
-  // markdown, generated UI html, transcript) are NOT included; the frontend
-  // fetches them only when the length counters change. Shipping them on
-  // every poll made the browser parse hundreds of KB/minute for nothing.
   app.get("/api/state", (req, res) => {
     res.json({
       notes: state.notes,
-      busy: state.busy,
+      busy: { ...state.busy, ui: false, deploy: false }, // legacy keys for the UI
       lastError: state.lastError,
       autoForge: state.autoForge,
       lastForgeAt: state.lastForgeAt,
       previewUrl: state.previewUrl,
+      sandboxUrl: state.sandboxUrl,
+      sandboxStale: state.sandboxStale,
+      spec: state.spec,
+      workflow: state.spec?.workflow || null,
       prdLen: state.prd?.length ?? 0,
-      uiLen: state.ui?.length ?? 0,
+      uiLen: 0,
       transcriptCount: state.transcript.length,
       daytonaConfigured: isDaytonaConfigured(),
       whisperConfigured: Boolean(config.nosanaWhisperUrl),
-      outputType: state.notes.output_type || "app",
+      outputType: "chatbot", // the Forge makes AI employees, nothing else
     });
   });
 
@@ -186,20 +243,37 @@ export function createApp() {
     res.type("text/plain").send(state.prd ?? "");
   });
 
-  // Audio chunk -> Whisper on Nosana GPU -> transcript entry. The frontend
-  // sends complete ~6s webm files (it restarts MediaRecorder per chunk, so
-  // every blob has container headers whisper can decode).
+  // The confirm-screen seam: read the spec, or push a corrected one. A POSTed
+  // spec goes through the same code validation as an extracted one, then the
+  // local employee is re-stamped immediately.
+  app.get("/api/spec", (req, res) => {
+    res.json(state.spec ?? {});
+  });
+  app.post("/api/spec", async (req, res) => {
+    try {
+      const spec = validateForgeSpec(req.body, state.notes, JSON.stringify(state.notes));
+      state.spec = spec;
+      state.sandboxStale = Boolean(state.sandboxUrl);
+      await deployLocalAgent(spec);
+      res.json({ ok: true, spec });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Audio chunk -> Whisper (Nosana GPU) -> transcript. Bahasa-first: language
+  // hint + a domain vocab prompt so QRIS/mutasi/GoFood come out clean.
   app.post("/api/audio", express.raw({ type: () => true, limit: "30mb" }), async (req, res) => {
     if (!config.nosanaWhisperUrl) return res.status(400).json({ error: "NOSANA_WHISPER_URL is not set" });
     if (!req.body?.length) return res.status(400).json({ error: "empty audio" });
     const speaker = String(req.query.speaker || "Speaker");
+    const lang = String(req.query.lang || config.asrLanguage);
     try {
       const fd = new FormData();
       fd.append("audio_file", new Blob([req.body], { type: "audio/webm" }), "chunk.webm");
-      const r = await fetch(
-        `${config.nosanaWhisperUrl}/asr?encode=true&task=transcribe&language=en&output=json`,
-        { method: "POST", body: fd, signal: AbortSignal.timeout(60_000) }
-      );
+      let url = `${config.nosanaWhisperUrl}/asr?encode=true&task=transcribe&language=${encodeURIComponent(lang)}&output=json`;
+      if (lang === "id") url += `&initial_prompt=${encodeURIComponent(config.asrPromptId)}`;
+      const r = await fetch(url, { method: "POST", body: fd, signal: AbortSignal.timeout(60_000) });
       if (!r.ok) throw new Error(`whisper ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
       const data = await r.json();
       const text = (data.text || "").trim();
@@ -226,14 +300,11 @@ export function createApp() {
     res.json({ ok: true });
   });
 
-  // Force a notes pass (e.g. right before generating the PRD)
   app.post("/api/notes/refresh", async (req, res) => {
     await refreshNotes();
     res.json({ ok: true, notes: state.notes });
   });
 
-  // Force one full cycle right now (the "forge now" button). Fire-and-forget:
-  // a cycle can take minutes (UI bot), progress is visible via /api/state.
   app.post("/api/forge", (req, res) => {
     forgeCycle(true).catch((err) => console.error("[forge]", err.message));
     res.json({ ok: true, started: true });
@@ -251,89 +322,66 @@ export function createApp() {
     res.json({ ok: true });
   });
 
-  app.post("/api/generate/ui", async (req, res) => {
-    if (state.busy.ui) return res.status(409).json({ error: "UI generation already running" });
-    await refreshNotes();
-    await runUiBot();
-    res.json({ ok: true });
-  });
-
-  app.post("/api/deploy", async (req, res) => {
-    if (!state.ui) return res.status(400).json({ error: "no UI generated yet" });
-    if (state.busy.deploy) return res.status(409).json({ error: "deploy already running" });
-    lastDeployedUi = null; // manual deploy always ships, even if unchanged
-    await runDeployBot();
-    res.json({ ok: true, url: state.previewUrl });
-  });
-
-  // The forged agent: real replies as the client's business (spec injection).
-  // [RECORD]{json} lines in the reply are stripped and appended to the ledger
-  // (data/ledger.jsonl — swap for Google Sheets when creds are wired in).
-  app.post("/api/chat", async (req, res) => {
-    const { message, image } = req.body || {};
-    if (!message?.trim() && !image) return res.status(400).json({ error: "message or image required" });
+  // THE HANDOVER: clone the employee into the client's own isolated sandbox
+  // and return the link that goes to THEIR phone. Re-running it re-stamps the
+  // same client's sandbox (slug-keyed), so refine -> handover -> refine works.
+  app.post("/api/handover", async (req, res) => {
+    if (!state.spec) return res.status(400).json({ error: "no spec forged yet" });
+    if (state.busy.sandbox) return res.status(409).json({ error: "handover already running" });
+    if (!isDaytonaConfigured()) return res.status(400).json({ error: "DAYTONA_API_KEY is not set" });
+    state.busy.sandbox = true;
     try {
-      const raw = await chatAsBusiness(state.notes, state.prd, state.chatHistory, message?.trim() || "", image);
-      const records = [];
-      const reply = raw
-        .split("\n")
-        .filter((line) => {
-          const m = line.match(/^\s*\[RECORD\]\s*(\{.*\})\s*$/);
-          if (!m) return true;
-          try { records.push(JSON.parse(m[1])); } catch {}
-          return false;
-        })
-        .join("\n")
-        .trim();
-      if (records.length) {
-        const dir = path.join(__dirname, "..", "data");
-        await mkdir(dir, { recursive: true });
-        await appendFile(
-          path.join(dir, "ledger.jsonl"),
-          records.map((r) => JSON.stringify({ at: new Date().toISOString(), ...r })).join("\n") + "\n"
-        );
-      }
-      state.chatHistory.push(
-        { role: "user", content: message?.trim() || "(image)" },
-        { role: "assistant", content: reply }
-      );
-      res.json({ reply, recorded: records.length });
+      const dir = await specDir(state.spec);
+      const { url, sandboxId } = await forgeSandbox(dir);
+      state.sandboxUrl = url;
+      state.sandboxId = sandboxId;
+      state.sandboxStale = false;
+      res.json({ ok: true, url, sandboxId });
     } catch (err) {
-      console.error("[chat]", err.message);
+      console.error("[handover]", err.message);
+      state.lastError = `handover: ${err.message}`;
       res.status(502).json({ error: err.message });
+    } finally {
+      state.busy.sandbox = false;
     }
   });
+
+  // The local employee, proxied: page + chat + health.
+  app.get("/employee", (req, res) => agentProxy(res, "/", {}));
+  app.post("/chat", express.json(), (req, res) =>
+    agentProxy(res, "/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body || {}),
+    })
+  );
 
   app.post("/api/reset", (req, res) => {
     meetingEpoch += 1;
     state.transcript = [];
     state.notes = structuredClone(EMPTY_NOTES);
     state.prd = null;
-    state.ui = null;
+    state.spec = null;
     state.previewUrl = null;
+    state.sandboxUrl = null;
+    state.sandboxId = null;
+    state.sandboxStale = false;
     state.lastError = null;
     state.charsSinceNotes = 0;
     state.lastForgeAt = null;
-    state.chatHistory = [];
     forgedChars = 0;
-    lastDeployedUi = null;
+    if (agentChild) {
+      agentChild.kill();
+      agentChild = null;
+    }
     res.json({ ok: true });
-  });
-
-  // Local preview of the generated prototype (works without Daytona)
-  app.get("/preview", (req, res) => {
-    if (!state.ui) return res.status(404).send("<p>No prototype yet. Generate the UI first.</p>");
-    res.type("html").send(state.ui);
   });
 
   app.use(express.static(path.join(__dirname, "..", "public")));
   return app;
 }
 
-// First ASR request after a container (re)start pays ~40s of model loading.
-// Warm it from here at startup and re-check every few minutes so the demo's
-// first spoken words never eat the cold start; also logs when the Nosana
-// container is down/re-initializing (503) so it's visible in notula.log.
+// Warm the Whisper model so the meeting's first words never eat the cold start.
 async function warmUpWhisper() {
   if (!config.nosanaWhisperUrl) return;
   try {
@@ -342,7 +390,6 @@ async function warmUpWhisper() {
       console.warn(`[whisper] service not ready (${ping.status}) — Nosana container may be restarting`);
       return;
     }
-    // 0.3s of silence is enough to force the model into VRAM.
     const silenceWav = Buffer.concat([
       Buffer.from("RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00", "binary"),
       Buffer.from([0x80, 0x3e, 0, 0, 0, 0x7d, 0, 0, 2, 0, 0x10, 0]),
@@ -352,7 +399,7 @@ async function warmUpWhisper() {
     const fd = new FormData();
     fd.append("audio_file", new Blob([silenceWav], { type: "audio/wav" }), "warmup.wav");
     const t0 = Date.now();
-    await fetch(`${config.nosanaWhisperUrl}/asr?encode=true&task=transcribe&language=en&output=json`, {
+    await fetch(`${config.nosanaWhisperUrl}/asr?encode=true&task=transcribe&language=${config.asrLanguage}&output=json`, {
       method: "POST", body: fd, signal: AbortSignal.timeout(120_000),
     });
     console.log(`[whisper] warm (${Date.now() - t0}ms)`);
@@ -363,9 +410,16 @@ async function warmUpWhisper() {
 
 const app = createApp();
 app.listen(config.port, () => {
-  console.log(`[notula] listening on http://localhost:${config.port}`);
-  if (!config.kimiApiKey) console.warn("[notula] KIMI_API_KEY belum diisi — fitur AI belum aktif");
-  if (!isDaytonaConfigured()) console.warn("[notula] DAYTONA_API_KEY belum diisi — preview pakai /preview lokal");
+  console.log(`[forge] listening on http://localhost:${config.port}`);
+  if (!config.kimiApiKey) console.warn("[forge] KIMI_API_KEY belum diisi — fitur AI belum aktif");
+  if (!isDaytonaConfigured()) console.warn("[forge] DAYTONA_API_KEY belum diisi — handover sandbox nonaktif");
   warmUpWhisper();
   setInterval(warmUpWhisper, 5 * 60 * 1000);
 });
+
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => {
+    if (agentChild) agentChild.kill();
+    process.exit(0);
+  });
+}
