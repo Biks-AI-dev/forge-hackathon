@@ -24,10 +24,10 @@ Team: **Nura + Tracy in the room (Singapore)** · **Ghaly (Dev A) + Reva (Dev B)
 | Reva (Dev B) | Sandbox agent template + Kimi + halo greeting + chat page; Daytona setup (his notes → `SANDBOX_SETUP.md`) |
 | Adith | Async review at every gate via WA, replies within the hour |
 
-## Tonight, before sleep
+## Before kickoff, 18 Jul morning (do these NOW)
 
 - [ ] Everyone: `git pull`, read `PRD.md`, `DEMO_SCRIPT.md`, open `demo-storyboard.html` in a browser
-- [ ] **Nura: record Beat 1** (the meeting monologue in DEMO_SCRIPT.md), one take, numbers exactly as written, drop in WA
+- [ ] **Nura: record Beat 1** (the meeting monologue in DEMO_SCRIPT.md), one take, numbers exactly as written, drop in WA - in the taxi is fine
 - [ ] Reva: PR the Daytona setup notes as `SANDBOX_SETUP.md`
 - [ ] Ghaly: skim the production recon engine + `test-data/recon/EXPECTED_OUTPUT.md`
 - [ ] Tracy: read this file twice; tomorrow she calls gates and cuts scope
