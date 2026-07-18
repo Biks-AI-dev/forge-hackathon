@@ -155,6 +155,9 @@ export function validateForgeSpec(raw, notes, textBlob) {
 
   const biz = (spec.business ||= {});
   biz.name ||= notes.business_name || "Bisnis Anda";
+  // "Kami Bali Banana" -> "Bali Banana": strip pronoun/filler prefixes the
+  // extractor sometimes drags in from the sentence
+  biz.name = String(biz.name).replace(/^\s*(kami|kita|we are|we're|jadi)\s+/i, "").trim() || "Bisnis Anda";
   persona.agent_name ||= `${biz.name.split(/\s+/)[0]} AI`;
 
   if (!spec.painpoint) {
