@@ -312,6 +312,8 @@
   <button class="btn play" id="btn-rec">▶ Record</button>
   <button class="pill" id="btn-upload" style="cursor:pointer;" title="Upload a meeting transcript (.txt from Otter, etc.) instead of live recording">📄 Upload transcript</button>
   <input type="file" id="file-transcript" accept=".txt,.md,.vtt,.srt,text/plain" style="display:none">
+  <button class="pill" id="btn-export" style="cursor:pointer;" title="Download the meeting pack (brief + flowchart + transcript + chatbot link) and save it on the server">⬇ Export</button>
+  <button class="pill" id="btn-refresh" style="cursor:pointer;" title="Re-sync the console from the server">⟳</button>
   <button class="pill" id="btn-reset" style="cursor:pointer;" title="Clear everything and start a fresh meeting">🆕 New meeting</button>
 </div>
 
@@ -735,6 +737,91 @@ function buildWorkflow(notes) {
 }
 
 // ===== state polling =====
+async function replayTranscript() {
+  try {
+    const txt = await (await fetch("/api/transcript")).text();
+    if (!txt.trim()) return;
+    $("#transcript").querySelector(".hint")?.remove();
+    if ($("#transcript").querySelector(".tline")) return; // already showing live lines
+    txt.split("\n").forEach((line) => {
+      const m = line.match(/^\[(\d\d:\d\d):\d\d\]\s*(.*)$/);
+      const div = document.createElement("div");
+      div.className = "tline";
+      div.innerHTML = `<div class="tmeta"><span>${esc(m ? m[1] : "")}</span></div><div class="ttext">${esc(m ? m[2] : line)}</div>`;
+      $("#transcript").appendChild(div);
+    });
+    $("#transcript").scrollTop = 1e9;
+  } catch {}
+}
+
+$("#btn-refresh").addEventListener("click", () => location.reload());
+
+// ===== export: one self-contained HTML pack (brief + flowchart + chatbot link
+// + transcript + PRD), downloaded AND saved server-side under data/meetings/ =====
+async function buildMeetingPack() {
+  const s = await (await fetch("/api/state")).json();
+  const transcript = await (await fetch("/api/transcript")).text();
+  const prd = s.prdLen ? await (await fetch("/api/prd")).text() : "";
+  const n = s.notes || {};
+  const biz = n.business_name || "Client";
+  const chatUrl = s.sandboxUrl || location.origin + "/employee";
+  const ul = (items) => items?.length ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : "";
+  const sec = (t, inner) => inner ? `<h3>${t}</h3>${inner}` : "";
+  const stages = (n.workflow?.stages || []).filter((st) => st.steps?.length);
+  const flow = stages.length ? `<div style="display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;margin:14px 0">` +
+    stages.map((st, i) =>
+      `<div style="border:1px solid #ddd;border-radius:10px;padding:10px;min-width:150px;background:#fafaf7">
+        <div style="font-size:10px;letter-spacing:.15em;color:#888;text-align:center;margin-bottom:8px">${esc(st.name).toUpperCase()}</div>` +
+        st.steps.map((step) => {
+          const label = typeof step === "string" ? step : step.label;
+          const sub = typeof step === "string" ? "" : [step.actor, step.detail].filter(Boolean).join(" · ");
+          return `<div style="border:1.5px solid #222;border-radius:8px;padding:7px 9px;margin-bottom:8px;background:#fff">
+            <b style="font-size:13px">${esc(label || "")}</b>${sub ? `<div style="font-size:11px;color:#777">${esc(sub)}</div>` : ""}</div>`;
+        }).join("") + `</div>` + (i < stages.length - 1 ? `<div style="align-self:center;font-size:20px">→</div>` : "")
+    ).join("") + `</div>` : "";
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(biz)} — meeting pack</title>
+<style>body{font-family:Georgia,serif;max-width:820px;margin:30px auto;padding:0 18px;color:#1a1a1a;line-height:1.55}
+h1{margin-bottom:2px}h3{margin:20px 0 6px}.mut{color:#777;font-size:13px}
+a.chat{display:inline-block;background:#0F766E;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;margin:10px 0}
+pre{background:#f6f4ef;padding:14px;border-radius:8px;font-size:12px;overflow-x:auto;white-space:pre-wrap}
+details{margin:16px 0}summary{cursor:pointer;font-weight:600}</style></head><body>
+<h1>${esc(biz)}</h1><div class="mut">Meeting brief · ${new Date().toLocaleString()} · biks.forge</div>
+${sec("Where you are today", n.summary ? `<p>${esc(n.summary)}</p>` : "")}
+${sec("What's slowing you down", ul(n.points))}
+${sec("What you need", ul(n.requirements))}
+${sec("What we agreed", ul(n.decisions))}
+${sec("Next steps", ul(n.action_items))}
+${sec("Your new workflow", flow)}
+<h3>Your AI employee</h3>
+<a class="chat" href="${esc(chatUrl)}">💬 Chat with ${esc(biz)} AI</a>
+<div class="mut">${esc(chatUrl)}${s.sandboxUrl ? "" : " (demo server must be running)"}</div>
+<details><summary>Full transcript</summary><pre>${esc(transcript)}</pre></details>
+${prd ? `<details><summary>Consultant PRD</summary><pre>${esc(prd)}</pre></details>` : ""}
+</body></html>`;
+}
+
+$("#btn-export").addEventListener("click", async () => {
+  const btn = $("#btn-export");
+  btn.disabled = true; btn.textContent = "⬇ Exporting…";
+  try {
+    const html = await buildMeetingPack();
+    const biz = (lastNotesJson && JSON.parse(lastNotesJson).business_name || "meeting")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    a.download = `${biz}-meeting-pack.html`;
+    a.click(); URL.revokeObjectURL(a.href);
+    const r = await (await fetch("/api/save", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ html }),
+    })).json();
+    btn.textContent = r.ok ? "✓ Saved" : "⬇ Export";
+    setTimeout(() => { btn.textContent = "⬇ Export"; btn.disabled = false; }, 2500);
+  } catch (e) {
+    btn.textContent = "⬇ Export"; btn.disabled = false; toast("export failed: " + e.message);
+  }
+});
+
 let lastNotesJson = "";
 let lastToastedError = null;
 
@@ -743,7 +830,12 @@ async function poll() {
     const s = await (await fetch("/api/state")).json();
     if (!freshChecked) {
       freshChecked = true;
-      if (s.transcriptCount > 0 && !recording) {
+      // Replay the transcript so a page refresh shows the full conversation.
+      if (s.transcriptCount > 0) replayTranscript();
+      // Only offer a wipe when the stored meeting is STALE (>30 min idle) —
+      // an accidental refresh mid-meeting must never risk the data.
+      const stale = s.lastActivityAt && Date.now() - s.lastActivityAt > 30 * 60 * 1000;
+      if (s.transcriptCount > 0 && !recording && stale) {
         if (confirm("Ada meeting lama tersimpan di server. Mulai meeting BARU?\n\nOK = hapus semua & mulai bersih\nCancel = lanjutkan meeting lama")) {
           await post("/api/reset"); location.reload(); return;
         }

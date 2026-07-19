@@ -238,7 +238,9 @@ export function createApp() {
   app.use(express.json({ limit: "12mb" }));
 
   app.get("/api/state", (req, res) => {
+    const lastAt = state.transcript.length ? state.transcript[state.transcript.length - 1].at : null;
     res.json({
+      lastActivityAt: lastAt,
       notes: state.notes,
       busy: { ...state.busy, ui: false, deploy: false }, // legacy keys for the UI
       lastError: state.lastError,
@@ -309,6 +311,39 @@ export function createApp() {
     } catch (err) {
       console.error("[audio]", err.message);
       res.status(502).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/transcript", (req, res) => {
+    const txt = state.transcript
+      .map((t) => `[${new Date(t.at).toTimeString().slice(0, 8)}] ${t.text}`)
+      .join("\n");
+    res.type("text/plain").send(txt);
+  });
+
+  // Persist the meeting to disk (data/ is gitignored): the export pack from
+  // the browser plus a machine-readable JSON. Survives reset and restart.
+  app.post("/api/save", async (req, res) => {
+    try {
+      const { html } = req.body || {};
+      const slug = (state.notes.business_name || "meeting")
+        .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "meeting";
+      const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 16);
+      const dir = path.join(__dirname, "..", "data", "meetings");
+      await mkdir(dir, { recursive: true });
+      const base = `${stamp}-${slug}`;
+      const files = [];
+      await writeFile(path.join(dir, `${base}.json`), JSON.stringify({
+        savedAt: new Date().toISOString(),
+        notes: state.notes, spec: state.spec, prd: state.prd,
+        transcript: state.transcript, sandboxUrl: state.sandboxUrl,
+      }, null, 2));
+      files.push(`data/meetings/${base}.json`);
+      if (html) { await writeFile(path.join(dir, `${base}.html`), html); files.push(`data/meetings/${base}.html`); }
+      res.json({ ok: true, files });
+    } catch (err) {
+      console.error("[save]", err.message);
+      res.status(500).json({ error: err.message });
     }
   });
 
