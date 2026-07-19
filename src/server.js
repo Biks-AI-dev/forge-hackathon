@@ -290,7 +290,10 @@ export function createApp() {
     try {
       const fd = new FormData();
       fd.append("audio_file", new Blob([req.body], { type: "audio/webm" }), "chunk.webm");
-      let url = `${config.nosanaWhisperUrl}/asr?encode=true&task=transcribe&language=${encodeURIComponent(lang)}&output=json`;
+      // "auto" (default): omit the language param — whisper detects per chunk,
+      // so English and Bahasa meetings both transcribe correctly.
+      let url = `${config.nosanaWhisperUrl}/asr?encode=true&task=transcribe&output=json`;
+      if (lang && lang !== "auto") url += `&language=${encodeURIComponent(lang)}`;
       if (lang === "id") url += `&initial_prompt=${encodeURIComponent(config.asrPromptId)}`;
       const r = await fetch(url, { method: "POST", body: fd, signal: AbortSignal.timeout(60_000) });
       if (!r.ok) throw new Error(`whisper ${r.status}: ${(await r.text().catch(() => "")).slice(0, 200)}`);
@@ -449,7 +452,7 @@ async function warmUpWhisper() {
     const fd = new FormData();
     fd.append("audio_file", new Blob([silenceWav], { type: "audio/wav" }), "warmup.wav");
     const t0 = Date.now();
-    await fetch(`${config.nosanaWhisperUrl}/asr?encode=true&task=transcribe&language=${config.asrLanguage}&output=json`, {
+    await fetch(`${config.nosanaWhisperUrl}/asr?encode=true&task=transcribe&output=json`, {
       method: "POST", body: fd, signal: AbortSignal.timeout(120_000),
     });
     console.log(`[whisper] warm (${Date.now() - t0}ms)`);
