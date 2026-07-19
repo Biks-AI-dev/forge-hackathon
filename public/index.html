@@ -309,7 +309,9 @@
   <div class="pill" id="st-pill"><span class="dot"></span><span id="st-txt">idle</span></div>
   <button class="pill" id="btn-auto" style="cursor:pointer;background:var(--paper-2);" title="Bots regenerate PRD + UI + deploy automatically while the client talks">🤖 Auto: ON</button>
   <button class="btn play" id="btn-rec">▶ Record</button>
-  <button class="pill" id="btn-reset" style="cursor:pointer;" title="New meeting">↺</button>
+  <button class="pill" id="btn-upload" style="cursor:pointer;" title="Upload a meeting transcript (.txt from Otter, etc.) instead of live recording">📄 Upload transcript</button>
+  <input type="file" id="file-transcript" accept=".txt,.md,.vtt,.srt,text/plain" style="display:none">
+  <button class="pill" id="btn-reset" style="cursor:pointer;" title="Clear everything and start a fresh meeting">🆕 New meeting</button>
 </div>
 
 <div class="cols">
@@ -318,7 +320,7 @@
   <div class="pane">
     <div class="phead"><h2>LIVE TRANSCRIPT</h2><span class="tag" id="asr-tag"></span></div>
     <div class="pbody" id="transcript">
-      <div class="hint">Click <b>▶ Record</b> to capture the conversation.<br>Whisper streams the transcript here — the brief writes itself as the client talks.</div>
+      <div class="hint">Click <b>▶ Record</b> to capture the conversation,<br>or <b>📄 Upload transcript</b> if you have a .txt (Otter etc.).<br>The brief writes itself from whichever you use.</div>
     </div>
   </div>
 
@@ -461,7 +463,10 @@ async function sendUtterance(text) {
 }
 
 // ===== Whisper mode: record real audio, transcribe on Nosana GPU =====
-const CHUNK_MS = 4000;
+// 15s chunks: Whisper needs whole sentences for decent Bahasa output. 4s
+// fragments produced word salad; the tradeoff is transcript lines arriving
+// every ~15s instead of ~4s, which the meeting flow absorbs fine.
+const CHUNK_MS = 15000;
 
 async function startWhisperRec() {
   mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -548,6 +553,28 @@ function renderAutoBtn() {
 $("#btn-reset").addEventListener("click", async () => {
   if (confirm("Start a new meeting? All current data will be cleared.")) { await post("/api/reset"); location.reload(); }
 });
+
+// ===== transcript upload (Otter etc.) — the reliable path when live ASR struggles =====
+$("#btn-upload").addEventListener("click", () => $("#file-transcript").click());
+$("#file-transcript").addEventListener("change", async () => {
+  const f = $("#file-transcript").files[0];
+  $("#file-transcript").value = "";
+  if (!f) return;
+  const text = await f.text();
+  if (!text.trim()) { toast("File kosong"); return; }
+  $("#btn-upload").textContent = "📄 uploading…"; $("#btn-upload").disabled = true;
+  try {
+    const r = await fetch("/api/transcript/bulk", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ text }) });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    addTranscriptLine(`📄 ${f.name} uploaded — ${d.lines} segments, forging…`, "us");
+    toast(`Transcript masuk (${d.lines} segmen). Brief & AI employee menyusul.`);
+  } catch (e) { toast("Upload gagal: " + e.message); }
+  finally { $("#btn-upload").textContent = "📄 Upload transcript"; $("#btn-upload").disabled = false; }
+});
+
+// ===== fresh-start guard: never let yesterday's meeting greet a new client =====
+let freshChecked = false;
 
 // ===== THE HANDOVER: clone the employee into the client's own sandbox =====
 async function handover() {
@@ -704,7 +731,14 @@ let lastToastedError = null;
 async function poll() {
   try {
     const s = await (await fetch("/api/state")).json();
-    console.log("[poll] notes={summary:" + (s.notes?.summary || "").slice(0, 30) + "... prdLen:" + s.prdLen + " uiLen:" + s.uiLen + " busy:" + JSON.stringify(s.busy) + " lastNotesChanged:" + (JSON.stringify(s.notes) !== lastNotesJson) + " forgeActive:" + forgeActive + "}");
+    if (!freshChecked) {
+      freshChecked = true;
+      if (s.transcriptCount > 0 && !recording) {
+        if (confirm("Ada meeting lama tersimpan di server. Mulai meeting BARU?\n\nOK = hapus semua & mulai bersih\nCancel = lanjutkan meeting lama")) {
+          await post("/api/reset"); location.reload(); return;
+        }
+      }
+    }
     whisperMode = !!s.whisperConfigured;
     if (!recording) {
       autoForge = !!s.autoForge;

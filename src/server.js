@@ -300,6 +300,35 @@ export function createApp() {
     res.json({ ok: true });
   });
 
+  // A whole meeting transcript in one file (Otter/Fireflies/manual .txt).
+  // The reliable path when live ASR is not good enough: upload, and the same
+  // notes -> spec -> employee pipeline runs on it.
+  app.post("/api/transcript/bulk", async (req, res) => {
+    const raw = String(req.body?.text || "").trim();
+    if (!raw) return res.status(400).json({ error: "text required" });
+    // pack lines into ~500-char segments so the notes bot sees coherent chunks
+    const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const segments = [];
+    let buf = "";
+    for (const line of lines) {
+      buf = buf ? `${buf}\n${line}` : line;
+      if (buf.length >= 500) { segments.push(buf); buf = ""; }
+    }
+    if (buf) segments.push(buf);
+    if (segments.length === 0) return res.status(400).json({ error: "no usable text" });
+    for (const seg of segments) {
+      state.transcript.push({ speaker: "upload", text: seg, at: Date.now(), analyzed: false });
+      state.charsSinceNotes += seg.length;
+    }
+    res.json({ ok: true, lines: segments.length });
+    try {
+      await refreshNotes();
+      await forgeCycle(true);
+    } catch (e) {
+      console.error("[bulk]", e.message);
+    }
+  });
+
   app.post("/api/notes/refresh", async (req, res) => {
     await refreshNotes();
     res.json({ ok: true, notes: state.notes });

@@ -91,7 +91,12 @@ export async function updateNotes(currentNotes, newChunk) {
     { temperature: 0.2 }
   );
 
-  return JSON.parse(stripFence(raw));
+  const notes = JSON.parse(stripFence(raw));
+  // "Kami Bali Banana" -> "Bali Banana" everywhere the name is shown
+  if (notes.business_name) {
+    notes.business_name = String(notes.business_name).replace(/^\s*(kami|kita|we are|we're|jadi)\s+/i, "").trim();
+  }
+  return notes;
 }
 
 /**

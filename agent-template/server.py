@@ -102,7 +102,7 @@ def halo_greeting_en():
     menu = "\n".join(f"• {c['name']} — {rp(c['price'])}" for c in CATALOG[:6]) or "• (menu coming)"
     return (
         f"Hi! 🙌 I'm {AGENT}, the order assistant for {BUSINESS}.\n"
-        f"I know {PAIN}. From now on: send orders as usual — I record them in full, "
+        f"I know the pain: \"{PAIN}.\" From now on: send orders as usual — I record them in full, "
         f"compute totals, and track payments. {OWNER} gives the final confirmation.\n\n"
         f"Menu:\n{menu}\n\n"
         f"My standing rules: prices only from the list, I never confirm a payment "
@@ -139,7 +139,7 @@ def halo_greeting():
     menu = "\n".join(f"• {c['name']} — {rp(c['price'])}" for c in CATALOG[:6]) or "• (menu menyusul)"
     return (
         f"Halo! 🙌 Aku {AGENT}, asisten pesanan {BUSINESS}.\n"
-        f"Aku tahu {PAIN}. Mulai sekarang: kirim pesanan seperti biasa — aku catat lengkap, "
+        f"Aku tahu masalahnya: \"{PAIN}.\" Mulai sekarang: kirim pesanan seperti biasa — aku catat lengkap, "
         f"hitung total, dan cek pembayaran. {OWNER} yang konfirmasi akhir.\n\n"
         f"Menu:\n{menu}\n\n"
         f"Aturan yang selalu kujaga: harga hanya dari daftar, pembayaran tidak pernah "
