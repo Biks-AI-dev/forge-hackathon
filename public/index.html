@@ -412,19 +412,26 @@ function startMeeting() {
 
 // ===== transcript rendering =====
 let lastLineAt = 0;
+let blockStartedAt = 0;
 function addTranscriptLine(text, speaker) {
   const empty = $("#transcript .hint");
   if (empty) empty.remove();
-  // Chunks land every ~15s mid-sentence; glue consecutive ones into one
-  // paragraph so the transcript reads as prose, not fragments.
-  const prev = $("#transcript .tline:last-child");
-  if (prev && Date.now() - lastLineAt < 20_000) {
+  // Glue chunks that land back-to-back into one paragraph so the transcript
+  // reads as prose. CRITICAL: never merge into #interim — that's the live
+  // Web Speech preview and it gets removed, taking the text with it.
+  const lines = $$("#transcript .tline:not(#interim)");
+  const prev = lines[lines.length - 1];
+  const sameBlock = prev &&
+    Date.now() - lastLineAt < 20_000 &&      // arrived back-to-back
+    Date.now() - blockStartedAt < 90_000 &&  // ...but cap the block
+    prev.querySelector(".ttext").textContent.length < 600;
+  if (sameBlock) {
     lastLineAt = Date.now();
     prev.querySelector(".ttext").textContent += " " + text;
     $("#transcript").scrollTop = 1e9;
     return;
   }
-  lastLineAt = Date.now();
+  lastLineAt = blockStartedAt = Date.now();
   const div = document.createElement("div");
   div.className = "tline";
   const t = new Date().toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
