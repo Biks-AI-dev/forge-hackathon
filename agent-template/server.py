@@ -76,6 +76,87 @@ for cat in CATEGORIES:
 def rp(n):
     return "Rp " + f"{int(round(n)):,}".replace(",", ".")
 
+# ---------------------------------------------------------------- i18n
+# Every user-facing string exists in both languages. The deterministic draft
+# must ALREADY be in the client's language: speak() (the LLM voice pass) is
+# optional — skipped without keys, and rejected whenever a digit changes — so
+# relying on it to translate leaked Bahasa into English deployments.
+_STR = {
+    "recorded_send_mutasi": {
+        "id": "Tercatat ✅ Sekarang kirim mutasi banknya ya 👇",
+        "en": "Recorded ✅ Now send the bank statement 👇"},
+    "echo_confirm": {
+        "id": "Aku echo dulu ya 👇\n{lines}\nTotal omzet {total}. Benar? Balas \"ya\" 👍",
+        "en": "Let me echo that back 👇\n{lines}\nTotal sales {total}. Correct? Reply \"yes\" 👍"},
+    "mutasi_received": {
+        "id": "Mutasi kuterima ({n} baris). Sekarang kirim closing-nya ya 👇",
+        "en": "Bank statement received ({n} lines). Now send the closing 👇"},
+    "refuse_to_guess": {
+        "id": "Jujur aku nggak tahu — dan aku nggak mau nebak. Kredit {amt} itu tidak cocok "
+              "dengan closing manapun. Sudah kutandai 🔴 untuk dicek {admin} ya.",
+        "en": "Honestly I don't know — and I won't guess. The {amt} credit doesn't match any "
+              "closing. I've flagged it 🔴 for {admin} to check."},
+    "payment_guardrail": {
+        "id": "Kalau soal konfirmasi pembayaran, itu wewenang {admin} ya 🙏 Kucatat dulu, "
+              "{admin} yang verifikasi — aku tidak pernah mengonfirmasi sendiri.",
+        "en": "Confirming a payment is {admin}'s call 🙏 I'll record it, {admin} verifies — "
+              "I never confirm one myself."},
+    "recon_idle": {
+        "id": "Siap 🙌 Kirim closing per channel atau paste mutasi banknya, nanti kucocokkan. "
+              "Ketik \"panduan\" kalau mau lihat cara pakai lagi.",
+        "en": "Ready 🙌 Send the closing per channel, or paste the bank statement — I'll match "
+              "them. Type \"guide\" to see how to use me again."},
+    "recon_header": {"id": "Hasil rekonsiliasi:", "en": "Reconciliation result:"},
+    "fee_total": {"id": "\nTotal biaya channel tercatat: {fee}.",
+                  "en": "\nTotal channel fees booked: {fee}."},
+    "recon_tail": {
+        "id": "\nYang 🔴 kutandai untuk {admin} — aku tidak akan menebak penjelasannya.",
+        "en": "\nThe 🔴 items are flagged for {admin} — I won't invent an explanation."},
+    "v_matched": {"id": "🟢 {name} {gross} → masuk {expect}{fee}",
+                  "en": "🟢 {name} {gross} → received {expect}{fee}"},
+    "v_fee": {"id": " (biaya {fee})", "en": " (fee {fee})"},
+    "v_exact": {"id": " — persis", "en": " — exact"},
+    "v_transit": {"id": "🟡 {name} {gross} belum masuk — normal H+{days}, kutunggu ±{expect}",
+                  "en": "🟡 {name} {gross} not in yet — normal on D+{days}, expecting ±{expect}"},
+    "v_missing": {"id": "🔴 {name} {gross} belum ketemu di mutasi — perlu dicek",
+                  "en": "🔴 {name} {gross} not found in the statement — needs a check"},
+    "v_orphan_credit": {"id": "🔴 Kredit {amt} \"{desc}\" tidak cocok dengan closing manapun",
+                        "en": "🔴 Credit {amt} \"{desc}\" matches no closing"},
+    "v_debit": {"id": "ℹ️ Debit {amt} \"{desc}\" — biaya bank, bukan penjualan",
+                "en": "ℹ️ Debit {amt} \"{desc}\" — bank charge, not a sale"},
+    "unlabelled_credit": {"id": "kredit tanpa keterangan", "en": "credit with no description"},
+    "sales_payment_proof": {
+        "id": "Bukti transfernya kucatat ya 🙏 {owner} verifikasi dulu, baru pesananmu kukunci. "
+              "Kukabari begitu terkonfirmasi ✅",
+        "en": "I've noted your transfer proof 🙏 {owner} verifies first, then I lock your order in. "
+              "I'll let you know once it's confirmed ✅"},
+    "sales_line_total": {"id": "{qty} × {item} = {total}. Kirim ke mana? 📍",
+                         "en": "{qty} × {item} = {total}. Where should we deliver? 📍"},
+    "sales_discount": {"id": "Untuk harga khusus aku harus tanya {owner} dulu ya 🙏 Kuteruskan sekarang.",
+                       "en": "Special pricing is {owner}'s call 🙏 Passing it on now."},
+    "sales_menu": {"id": "Ini menunya 👇\n{menu}\nMau pesan yang mana?",
+                   "en": "Here's the menu 👇\n{menu}\nWhat would you like?"},
+    "sales_offmenu": {
+        "id": "Hmm, itu di luar daftar menuku — kuteruskan ke {owner} ya 🙏 Sementara itu, "
+              "ketik \"menu\" untuk lihat pilihan.",
+        "en": "Hmm, that's off my menu — passing it to {owner} 🙏 Meanwhile, type \"menu\" "
+              "to see the options."},
+    "sales_idle": {"id": "Mau pesan apa? 😊 Ketik \"menu\" untuk lihat pilihan.",
+                   "en": "What would you like to order? 😊 Type \"menu\" to see the options."},
+    "no_vision": {"id": "Aku belum bisa baca foto di sini 🙏 Ketik angkanya sebagai teks ya.",
+                  "en": "I can't read photos here yet 🙏 Please type the numbers as text."},
+    "glitch": {"id": "Maaf, ada kendala kecil di sisiku 🙏 Coba kirim ulang ya. ({err})",
+               "en": "Sorry, small glitch on my side 🙏 Please send that again. ({err})"},
+    "ui_placeholder": {"id": "Ketik pesan…", "en": "Type a message…"},
+    "ui_typing": {"id": "mengetik…", "en": "typing…"},
+    "ui_offline": {"id": "⚠️ koneksi terputus, coba lagi", "en": "⚠️ connection lost, try again"},
+    "ui_attach": {"id": "Kirim foto closing / mutasi / file", "en": "Send a closing / statement photo or file"},
+}
+
+def T(key, **kw):
+    return _STR[key]["en" if LANG == "en" else "id"].format(**kw)
+
+
 # ---------------------------------------------------------------- halo greeting
 def halo_greeting_en():
     if WORKFLOW == "recon":
@@ -248,21 +329,21 @@ def reconcile(closing, credits):
         if hit is not None:
             used.add(hit)
             total_fee += fee
-            fee_txt = f" (biaya {rp(fee)})" if fee else " — persis"
-            verdicts.append(f"🟢 {name.title()} {rp(gross)} → masuk {rp(expect)}{fee_txt}")
+            fee_txt = T("v_fee", fee=rp(fee)) if fee else T("v_exact")
+            verdicts.append(T("v_matched", name=name.title(), gross=rp(gross), expect=rp(expect), fee=fee_txt))
         elif (c.get("settle_days") or 0) > 0:
-            verdicts.append(f"🟡 {name.title()} {rp(gross)} belum masuk — normal H+{c['settle_days']}, "
-                            f"kutunggu ±{rp(expect)}")
+            verdicts.append(T("v_transit", name=name.title(), gross=rp(gross),
+                              days=c["settle_days"], expect=rp(expect)))
         else:
-            verdicts.append(f"🔴 {name.title()} {rp(gross)} belum ketemu di mutasi — perlu dicek")
+            verdicts.append(T("v_missing", name=name.title(), gross=rp(gross)))
     for i, (desc, amt, is_cr) in enumerate(credits):
         if i in used:
             continue
         if is_cr:
-            reds.append((desc.strip() or "kredit tanpa keterangan", amt))
-            verdicts.append(f"🔴 Kredit {rp(amt)} \"{desc.strip()}\" tidak cocok dengan closing manapun")
+            reds.append((desc.strip() or T("unlabelled_credit"), amt))
+            verdicts.append(T("v_orphan_credit", amt=rp(amt), desc=desc.strip()))
         else:
-            verdicts.append(f"ℹ️ Debit {rp(amt)} \"{desc.strip()}\" — biaya bank, bukan penjualan")
+            verdicts.append(T("v_debit", amt=rp(amt), desc=desc.strip()))
     return verdicts, total_fee, reds
 
 # ---------------------------------------------------------------- sales decide()
@@ -330,7 +411,7 @@ def brain_recon(s, text):
         s["pending_echo"] = None
         if s["credits"]:
             return run_recon(s)
-        return speak(f"Tercatat ✅ Sekarang kirim mutasi banknya ya 👇")
+        return speak(T("recorded_send_mutasi"))
 
     looks_mutasi = any(k in text.upper() for k in
                        ("MUTASI", "SALDO", "KETERANGAN", "SETTLEMENT", "DISBURSE", ",CR", ",DB", "\"CR\"", "\"DB\""))
@@ -340,31 +421,28 @@ def brain_recon(s, text):
         s["pending_echo"] = ch
         lines = " · ".join(f"{k.title()} {rp(v)}" for k, v in ch.items())
         total = rp(sum(ch.values()))
-        return speak(f"Aku echo dulu ya 👇\n{lines}\nTotal omzet {total}. Benar? Balas \"ya\" 👍")
+        return speak(T("echo_confirm", lines=lines, total=total))
 
     mut = parse_mutasi(text) if looks_mutasi else []
     if mut:
         s["credits"] = mut
         if s["closing"]:
             return run_recon(s)
-        return speak(f"Mutasi kuterima ({len(mut)} baris). Sekarang kirim closing-nya ya 👇")
+        return speak(T("mutasi_received", n=len(mut)))
 
     # questions about a red item — REFUSE TO GUESS (the money moment)
     if s["reds"] and re.search(r"\b\d|itu apa|apa itu|kenapa|dari mana", text.lower()):
         d, amt = s["reds"][0]
-        return speak(f"Jujur aku nggak tahu — dan aku nggak mau nebak. Kredit {rp(amt)} itu "
-                     f"tidak cocok dengan closing manapun. Sudah kutandai 🔴 untuk dicek {ADMIN} ya.")
+        return speak(T("refuse_to_guess", amt=rp(amt), admin=ADMIN))
 
     if s["verdicts"] and re.search(r"gimana|hasil|selisih|cocok|status|kemarin", text.lower()):
         return speak(summary(s))
 
     # payment guardrail holds in EVERY workflow: never confirm before the human verifies
     if re.search(r"konfirm|sudah\s*(bayar|transfer|tf)|bukti|lunas|paid", text.lower()):
-        return speak(f"Kalau soal konfirmasi pembayaran, itu wewenang {ADMIN} ya 🙏 "
-                     f"Kucatat dulu, {ADMIN} yang verifikasi — aku tidak pernah mengonfirmasi sendiri.")
+        return speak(T("payment_guardrail", admin=ADMIN))
 
-    return speak("Siap 🙌 Kirim closing per channel atau paste mutasi banknya, nanti kucocokkan. "
-                 "Ketik \"panduan\" kalau mau lihat cara pakai lagi.")
+    return speak(T("recon_idle"))
 
 def run_recon(s):
     verdicts, fee, reds = reconcile(s["closing"], s["credits"])
@@ -373,31 +451,29 @@ def run_recon(s):
 
 def summary(s, fee=None):
     body = "\n".join(s["verdicts"])
-    fee_line = f"\nTotal biaya channel tercatat: {rp(fee)}." if fee else ""
-    tail = f"\nYang 🔴 kutandai untuk {ADMIN} — aku tidak akan menebak penjelasannya."
-    return f"Hasil rekonsiliasi:\n{body}{fee_line}{tail}"
+    fee_line = T("fee_total", fee=rp(fee)) if fee else ""
+    tail = T("recon_tail", admin=ADMIN)
+    return f"{T('recon_header')}\n{body}{fee_line}{tail}"
 
 def brain_sales(s, text):
     if PAY_RE.search(text):     # NEVER confirm an unverified payment
-        return speak(f"Bukti transfernya kucatat ya 🙏 {OWNER} verifikasi dulu, "
-                     f"baru pesananmu kukunci. Kukabari begitu terkonfirmasi ✅")
+        return speak(T("sales_payment_proof", owner=OWNER))
     it = find_item(text)
     if it:
         qty = parse_qty(text)
         total = qty * it["price"]           # computed in code, never by the model
-        return speak(f"{qty} × {it['name']} = {rp(total)}. Kirim ke mana? 📍")
+        return speak(T("sales_line_total", qty=qty, item=it["name"], total=rp(total)))
     if re.search(r"diskon|kurang|nego", text.lower()):
-        return speak(f"Untuk harga khusus aku harus tanya {OWNER} dulu ya 🙏 Kuteruskan sekarang.")
+        return speak(T("sales_discount", owner=OWNER))
     if re.search(r"menu|harga|list|apa aja", text.lower()):
         menu = "\n".join(f"• {c['name']} — {rp(c['price'])}" for c in CATALOG)
-        return speak(f"Ini menunya 👇\n{menu}\nMau pesan yang mana?")
+        return speak(T("sales_menu", menu=menu))
     if len(text) > 2:
-        return speak(f"Hmm, itu di luar daftar menuku — kuteruskan ke {OWNER} ya 🙏 "
-                     f"Sementara itu, ketik \"menu\" untuk lihat pilihan.")
-    return speak("Mau pesan apa? 😊 Ketik \"menu\" untuk lihat pilihan.")
+        return speak(T("sales_offmenu", owner=OWNER))
+    return speak(T("sales_idle"))
 
 # ---------------------------------------------------------------- chat page
-PAGE = """<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8">
+PAGE = """<!DOCTYPE html><html lang="__LANG__"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__AGENT__ · __BIZ__</title><style>
 *{box-sizing:border-box;margin:0}body{font-family:'Segoe UI',system-ui,sans-serif;background:#EFEAE2;height:100dvh;display:flex;flex-direction:column}
@@ -413,7 +489,7 @@ button{border:none;background:#0F766E;color:#fff;width:44px;height:44px;border-r
 </style></head><body>
 <header><b>__AGENT__</b><small>__BIZ__ · AI employee · online</small></header>
 <div id="log"></div>
-<form id="f"><button type="button" id="att" title="Kirim foto closing / mutasi / file">📎</button><input type="file" id="fi" accept="image/*,.txt,.csv" style="display:none"><input id="m" placeholder="Ketik pesan…" autocomplete="off" autofocus><button>➤</button></form>
+<form id="f"><button type="button" id="att" title="__ATTACH__">📎</button><input type="file" id="fi" accept="image/*,.txt,.csv" style="display:none"><input id="m" placeholder="__PLACEHOLDER__" autocomplete="off" autofocus><button>➤</button></form>
 <script>
 const sid = sessionStorage.sid ||= (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()));
 const log = document.getElementById('log');
@@ -422,11 +498,11 @@ let pendingImg=null;
 async function send(text, image){
   if(text||image){const d=add('me', text||'');
     if(image){const im=document.createElement('img');im.src=image;d.prepend(im);}}
-  const t=document.createElement('div');t.className='typing';t.textContent='mengetik…';log.appendChild(t);log.scrollTop=1e9;
+  const t=document.createElement('div');t.className='typing';t.textContent='__TYPING__';log.appendChild(t);log.scrollTop=1e9;
   try{
     const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,message:text,image})});
     const j=await r.json();t.remove();add('bot', j.reply||'(…)');
-  }catch(e){t.remove();add('bot','⚠️ koneksi terputus, coba lagi');}
+  }catch(e){t.remove();add('bot','__OFFLINE__');}
 }
 document.getElementById('f').onsubmit=e=>{e.preventDefault();const m=document.getElementById('m');const v=m.value.trim();if(!v&&!pendingImg)return;m.value='';const img=pendingImg;pendingImg=null;document.getElementById('att').textContent='📎';send(v,img)};
 document.getElementById('att').onclick=()=>document.getElementById('fi').click();
@@ -447,7 +523,10 @@ document.getElementById('fi').onchange=()=>{
   document.getElementById('fi').value='';
 };
 </script></body></html>"""
-PAGE = PAGE.replace("__AGENT__", AGENT).replace("__BIZ__", BUSINESS)
+PAGE = (PAGE.replace("__AGENT__", AGENT).replace("__BIZ__", BUSINESS)
+            .replace("__LANG__", "en" if LANG == "en" else "id")
+            .replace("__ATTACH__", T("ui_attach")).replace("__PLACEHOLDER__", T("ui_placeholder"))
+            .replace("__TYPING__", T("ui_typing")).replace("__OFFLINE__", T("ui_offline")))
 
 # ---------------------------------------------------------------- image OCR
 def ocr_image(data_url):
@@ -514,14 +593,11 @@ class Handler(BaseHTTPRequestHandler):
             if image:
                 extracted = ocr_image(str(image))
                 if extracted is None:
-                    return self._json(200, {"reply": (
-                        "Aku belum bisa baca foto di sini 🙏 Ketik angkanya sebagai teks ya."
-                        if LANG == "id" else
-                        "I can't read photos here yet 🙏 Please type the numbers as text.")})
+                    return self._json(200, {"reply": T("no_vision")})
                 message = (message + "\n" if message else "") + extracted
             reply = brain(sid, message)
         except Exception as exc:  # never die mid-demo
-            reply = f"Maaf, ada kendala kecil di sisiku 🙏 Coba kirim ulang ya. ({type(exc).__name__})"
+            reply = T("glitch", err=type(exc).__name__)
         self._json(200, {"reply": reply})
 
     def log_message(self, *a):
