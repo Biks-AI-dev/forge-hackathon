@@ -411,9 +411,20 @@ function startMeeting() {
 }
 
 // ===== transcript rendering =====
+let lastLineAt = 0;
 function addTranscriptLine(text, speaker) {
   const empty = $("#transcript .hint");
   if (empty) empty.remove();
+  // Chunks land every ~15s mid-sentence; glue consecutive ones into one
+  // paragraph so the transcript reads as prose, not fragments.
+  const prev = $("#transcript .tline:last-child");
+  if (prev && Date.now() - lastLineAt < 20_000) {
+    lastLineAt = Date.now();
+    prev.querySelector(".ttext").textContent += " " + text;
+    $("#transcript").scrollTop = 1e9;
+    return;
+  }
+  lastLineAt = Date.now();
   const div = document.createElement("div");
   div.className = "tline";
   const t = new Date().toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
@@ -824,6 +835,7 @@ $("#btn-export").addEventListener("click", async () => {
 
 let lastNotesJson = "";
 let lastToastedError = null;
+let lastSpecSig = "";
 
 async function poll() {
   try {
@@ -881,6 +893,16 @@ async function poll() {
       $("#extract-tag").innerHTML = '<span class="shimmer">EXTRACTING</span>';
     } else if (!s.prdLen) {
       $("#extract-tag").textContent = "";
+    }
+
+    // Spec changed (refine mid-meeting) → the employee was re-spawned with the
+    // new spec; reload its iframe so the header/greeting match (stale-header fix).
+    const specSig = s.spec ? JSON.stringify([s.spec.workflow, s.spec.persona?.agent_name, s.spec.business?.name]) : "";
+    if (specSig && specSig !== lastSpecSig) {
+      if (lastSpecSig && $("#proto-frame").style.display !== "none") {
+        try { $("#proto-frame").contentWindow.location.reload(); } catch {}
+      }
+      lastSpecSig = specSig;
     }
 
     // Notes → brief + workflow (brief stays customer-readable; PRD is a link)

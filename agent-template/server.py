@@ -23,6 +23,7 @@ PORT = int(os.environ.get("PORT", "8000"))
 KIMI_KEY = os.environ.get("KIMI_API_KEY") or ""
 KIMI_URL = (os.environ.get("KIMI_BASE_URL") or "").rstrip("/")
 KIMI_MODEL = os.environ.get("KIMI_MODEL", "kimi-k2-0905-preview")
+KIMI_VISION_MODEL = os.environ.get("KIMI_VISION_MODEL", "")
 
 # ---------------------------------------------------------------- spec loading
 try:
@@ -166,7 +167,9 @@ def parse_amount(s):
 def parse_channel_lines(text):
     """'QRIS: Rp 1.430.000' style lines → {CHANNEL: amount}"""
     out = {}
-    known = [c["name"].upper() for c in CHANNELS] or ["CASH", "QRIS", "GOFOOD", "GRABFOOD", "TRANSFER"]
+    # Spec channels PLUS the standard Indonesian set — a meeting that only
+    # mentioned "card" must not produce an agent blind to Cash/QRIS/GoFood.
+    known = sorted({c["name"].upper() for c in CHANNELS} | {"CASH", "QRIS", "GOFOOD", "GRABFOOD", "TRANSFER", "CARD"})
     alias = {"GOJEK": "GOFOOD", "GO FOOD": "GOFOOD", "GO-FOOD": "GOFOOD",
              "GRAB": "GRABFOOD", "TRANSFER BCA": "TRANSFER", "TF": "TRANSFER", "TUNAI": "CASH"}
     for line in text.splitlines():
@@ -292,7 +295,8 @@ def speak(draft):
                                 f"emoji status, atau fakta pun. Balas HANYA pesannya."},
                     {"role": "user", "content": draft}],
             }).encode(),
-            headers={"Authorization": f"Bearer {KIMI_KEY}", "Content-Type": "application/json"})
+            headers={"Authorization": f"Bearer {KIMI_KEY}", "Content-Type": "application/json",
+                     "User-Agent": "biks-forge-agent/1.0"})
         with urllib.request.urlopen(req, timeout=12) as r:
             out = json.load(r)["choices"][0]["message"]["content"].strip()
         need = re.findall(r"\d[\d.,]*", draft)
@@ -405,26 +409,62 @@ header{background:#0F766E;color:#fff;padding:12px 16px}header b{font-size:15px;d
 .typing{color:#888;font-size:12px;align-self:flex-start;padding:0 4px}
 form{display:flex;gap:8px;padding:10px 12px;background:#F0F2F5}
 input{flex:1;border:none;border-radius:20px;padding:11px 16px;font-size:14px;outline:none}
-button{border:none;background:#0F766E;color:#fff;width:44px;height:44px;border-radius:50%;font-size:17px;cursor:pointer}
+button{border:none;background:#0F766E;color:#fff;width:44px;height:44px;border-radius:50%;font-size:17px;cursor:pointer}\n#att{background:#fff;color:#54656F;border:1px solid #ddd}\n.b img{max-width:100%;border-radius:8px;display:block;margin-bottom:4px}
 </style></head><body>
 <header><b>__AGENT__</b><small>__BIZ__ · AI employee · online</small></header>
 <div id="log"></div>
-<form id="f"><input id="m" placeholder="Ketik pesan…" autocomplete="off" autofocus><button>➤</button></form>
+<form id="f"><button type="button" id="att" title="Kirim foto closing / mutasi / file">📎</button><input type="file" id="fi" accept="image/*,.txt,.csv" style="display:none"><input id="m" placeholder="Ketik pesan…" autocomplete="off" autofocus><button>➤</button></form>
 <script>
 const sid = sessionStorage.sid ||= (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()));
 const log = document.getElementById('log');
 function add(cls, text){const d=document.createElement('div');d.className='b '+cls;d.textContent=text;log.appendChild(d);log.scrollTop=1e9;return d}
-async function send(text){
-  if(text) add('me', text);
+let pendingImg=null;
+async function send(text, image){
+  if(text||image){const d=add('me', text||'');
+    if(image){const im=document.createElement('img');im.src=image;d.prepend(im);}}
   const t=document.createElement('div');t.className='typing';t.textContent='mengetik…';log.appendChild(t);log.scrollTop=1e9;
   try{
-    const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,message:text})});
+    const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,message:text,image})});
     const j=await r.json();t.remove();add('bot', j.reply||'(…)');
   }catch(e){t.remove();add('bot','⚠️ koneksi terputus, coba lagi');}
 }
-document.getElementById('f').onsubmit=e=>{e.preventDefault();const m=document.getElementById('m');const v=m.value.trim();if(!v)return;m.value='';send(v)};
+document.getElementById('f').onsubmit=e=>{e.preventDefault();const m=document.getElementById('m');const v=m.value.trim();if(!v&&!pendingImg)return;m.value='';const img=pendingImg;pendingImg=null;document.getElementById('att').textContent='📎';send(v,img)};
+document.getElementById('att').onclick=()=>document.getElementById('fi').click();
+document.getElementById('fi').onchange=()=>{
+  const f=document.getElementById('fi').files[0];if(!f)return;
+  if(f.type.startsWith('image/')){const rd=new FileReader();rd.onload=()=>{pendingImg=rd.result;document.getElementById('att').textContent='🖼️'};rd.readAsDataURL(f);}
+  else{const rd=new FileReader();rd.onload=()=>{const m=document.getElementById('m');m.value=(m.value?m.value+'\\n':'')+rd.result.slice(0,4000)};rd.readAsText(f);}
+  document.getElementById('fi').value='';
+};
 </script></body></html>"""
 PAGE = PAGE.replace("__AGENT__", AGENT).replace("__BIZ__", BUSINESS)
+
+# ---------------------------------------------------------------- image OCR
+def ocr_image(data_url):
+    """Photo of a closing / bank statement -> the text & numbers in it.
+    Uses the vision model when configured; plain refusal otherwise, so the
+    agent still works with zero keys."""
+    if not (KIMI_KEY and KIMI_URL and KIMI_VISION_MODEL):
+        return None
+    body = json.dumps({
+        "model": KIMI_VISION_MODEL,
+        "temperature": 0.1,
+        "max_tokens": 800,
+        "messages": [{"role": "user", "content": [
+            {"type": "text", "text":
+             "Read this business document photo (closing/receipt/bank statement). "
+             "Transcribe ALL text and numbers exactly as written, line by line. Output only the transcription."},
+            {"type": "image_url", "image_url": {"url": data_url}},
+        ]}],
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        KIMI_URL + "/chat/completions", data=body,
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + KIMI_KEY,
+                 "User-Agent": "biks-forge-agent/1.0"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        data = json.loads(r.read().decode("utf-8"))
+    return (data["choices"][0]["message"]["content"] or "").strip()
+
 
 # ---------------------------------------------------------------- http server
 class Handler(BaseHTTPRequestHandler):
@@ -458,8 +498,18 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             payload = {}
         sid = str(payload.get("session_id") or self.client_address[0])
+        message = str(payload.get("message") or "")
+        image = payload.get("image")
         try:
-            reply = brain(sid, str(payload.get("message") or ""))
+            if image:
+                extracted = ocr_image(str(image))
+                if extracted is None:
+                    return self._json(200, {"reply": (
+                        "Aku belum bisa baca foto di sini 🙏 Ketik angkanya sebagai teks ya."
+                        if LANG == "id" else
+                        "I can't read photos here yet 🙏 Please type the numbers as text.")})
+                message = (message + "\n" if message else "") + extracted
+            reply = brain(sid, message)
         except Exception as exc:  # never die mid-demo
             reply = f"Maaf, ada kendala kecil di sisiku 🙏 Coba kirim ulang ya. ({type(exc).__name__})"
         self._json(200, {"reply": reply})
