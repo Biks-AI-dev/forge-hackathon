@@ -432,7 +432,17 @@ document.getElementById('f').onsubmit=e=>{e.preventDefault();const m=document.ge
 document.getElementById('att').onclick=()=>document.getElementById('fi').click();
 document.getElementById('fi').onchange=()=>{
   const f=document.getElementById('fi').files[0];if(!f)return;
-  if(f.type.startsWith('image/')){const rd=new FileReader();rd.onload=()=>{pendingImg=rd.result;document.getElementById('att').textContent='🖼️'};rd.readAsDataURL(f);}
+  if(f.type.startsWith('image/')){
+    // Phone photos are 3-6MB; downscale to ≤1600px JPEG so OCR is fast and
+    // never rejected for size.
+    const img=new Image();img.onload=()=>{
+      const k=Math.min(1,1600/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');c.width=img.width*k;c.height=img.height*k;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      pendingImg=c.toDataURL('image/jpeg',0.85);document.getElementById('att').textContent='🖼️';
+      URL.revokeObjectURL(img.src);
+    };img.src=URL.createObjectURL(f);
+  }
   else{const rd=new FileReader();rd.onload=()=>{const m=document.getElementById('m');m.value=(m.value?m.value+'\\n':'')+rd.result.slice(0,4000)};rd.readAsText(f);}
   document.getElementById('fi').value='';
 };

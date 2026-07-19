@@ -151,9 +151,16 @@ async function specDir(spec) {
 async function deployLocalAgent(spec) {
   agentDir = await specDir(spec);
   if (agentChild) {
-    agentChild.removeAllListeners("exit");
-    agentChild.kill();
+    const old = agentChild;
     agentChild = null;
+    old.removeAllListeners("exit");
+    // kill() is async — bind the port only after the old process is gone,
+    // or the respawned employee dies with EADDRINUSE mid-refine.
+    await new Promise((resolve) => {
+      const t = setTimeout(() => { old.kill("SIGKILL"); resolve(); }, 1500);
+      old.once("exit", () => { clearTimeout(t); resolve(); });
+      old.kill();
+    });
   }
   const child = spawn(PYTHON, [AGENT_TEMPLATE], {
     cwd: agentDir,
