@@ -12,7 +12,7 @@ export const config = {
   nosanaWhisperUrl: (process.env.NOSANA_WHISPER_URL || "").replace(/\/$/, ""),
   // Bahasa-first: meetings are held in Indonesian unless overridden per-request
   // (?lang=en on /api/audio) or via env.
-  asrLanguage: process.env.ASR_LANGUAGE || "id",
+  asrLanguage: process.env.ASR_LANGUAGE || "auto", // auto = Whisper detects per chunk (en/id meetings both work)
   // Domain vocabulary fed to Whisper as initial_prompt so Indonesian SME terms
   // transcribe correctly instead of being mangled into English lookalikes.
   asrPromptId:

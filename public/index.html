@@ -308,6 +308,7 @@
   <div class="spacer"></div>
   <div class="pill" id="st-pill"><span class="dot"></span><span id="st-txt">idle</span></div>
   <button class="pill" id="btn-auto" style="cursor:pointer;background:var(--paper-2);" title="Bots regenerate PRD + UI + deploy automatically while the client talks">🤖 Auto: ON</button>
+  <button class="pill" id="btn-lang" style="cursor:pointer;" title="Speech language — Auto lets Whisper detect English or Bahasa per sentence">🌐 Auto</button>
   <button class="btn play" id="btn-rec">▶ Record</button>
   <button class="pill" id="btn-upload" style="cursor:pointer;" title="Upload a meeting transcript (.txt from Otter, etc.) instead of live recording">📄 Upload transcript</button>
   <input type="file" id="file-transcript" accept=".txt,.md,.vtt,.srt,text/plain" style="display:none">
@@ -424,7 +425,9 @@ function initRecog(displayOnly = false) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { if (!displayOnly) toast("This browser lacks the Web Speech API — use Chrome."); return null; }
   const r = new SR();
-  r.lang = "id-ID"; r.continuous = true; r.interimResults = true; // Bahasa-first (Whisper mode is the primary path anyway)
+  // Web Speech can't auto-detect; follow the language pill (browser locale on Auto).
+  r.lang = asrLang === "id" ? "id-ID" : asrLang === "en" ? "en-US" : (navigator.language || "en-US").startsWith("id") ? "id-ID" : "en-US";
+  r.continuous = true; r.interimResults = true;
   let lastStart = 0, rapidEnds = 0;
   r.onstart = () => { lastStart = Date.now(); };
   r.onresult = (e) => {
@@ -483,7 +486,7 @@ function whisperLoop() {
     if (recording) whisperLoop();
     if (blob.size < 3000) return;
     try {
-      const r = await fetch(`/api/audio?speaker=${curSpeaker}`, { method:"POST", headers:{"Content-Type":"audio/webm"}, body:blob });
+      const r = await fetch(`/api/audio?speaker=${curSpeaker}&lang=${asrLang}`, { method:"POST", headers:{"Content-Type":"audio/webm"}, body:blob });
       const d = await r.json();
       if (d.text) addTranscriptLine(d.text, curSpeaker);
       else if (d.error) toast(d.error);
@@ -504,6 +507,13 @@ function stopWhisperRec() {
 }
 
 // ===== record button =====
+let asrLang = "auto"; // auto | en | id — Whisper detects on auto
+$("#btn-lang").addEventListener("click", () => {
+  asrLang = asrLang === "auto" ? "en" : asrLang === "en" ? "id" : "auto";
+  $("#btn-lang").textContent = asrLang === "auto" ? "🌐 Auto" : asrLang === "en" ? "🌐 EN" : "🌐 ID";
+  if (!recording) recog = null; // rebuild Web Speech with the new lang on next start
+});
+
 $("#btn-rec").addEventListener("click", async () => {
   if (!recording) {
     if (whisperMode) {

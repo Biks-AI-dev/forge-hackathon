@@ -145,7 +145,7 @@ function routeWorkflow(candidate, textBlob) {
   if (candidate === "recon" || candidate === "sales") return candidate;
   // keyword fallback so the router never leaves the library
   const t = textBlob.toLowerCase();
-  const reconHits = (t.match(/rekonsiliasi|mutasi|closing|settlement|bank statement|reconcil|selisih|cocokin|selis/g) || []).length;
+  const reconHits = (t.match(/rekonsiliasi|mutasi|closing|settlement|bank statement|bank mutation|reconcil|matching|match(?:es|ing)? receipts|discrepan|finance admin|selisih|cocokin|selis/g) || []).length;
   const salesHits = (t.match(/pesanan|order|menu|katalog|catalogue|harga|price list|jualan|customer chat/g) || []).length;
   return salesHits > reconHits ? "sales" : "recon";
 }
