@@ -163,6 +163,7 @@ async function deployLocalAgent(spec) {
       KIMI_API_KEY: config.kimiApiKey,
       KIMI_BASE_URL: config.kimiBaseUrl,
       KIMI_MODEL: config.kimiModel,
+      KIMI_VISION_MODEL: config.kimiVisionModel || "",
     },
   });
   child.stderr.on("data", (d) => console.error("[agent]", String(d).trim()));

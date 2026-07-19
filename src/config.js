@@ -7,6 +7,9 @@ export const config = {
   // Heavier model for the quality-critical, infrequent calls (PRD); the fast
   // kimiModel handles the every-few-seconds incremental notes + spec extraction.
   kimiSmartModel: process.env.KIMI_SMART_MODEL || process.env.KIMI_MODEL || "kimi-k2-0711-preview",
+  // Only used when the forged agent receives a photo (OCR). kimi-k2.7-code has
+  // vision too but currently degenerate on ai& — swap via KIMI_VISION_MODEL.
+  kimiVisionModel: process.env.KIMI_VISION_MODEL || "google/gemma-4-31b-it",
 
   // Whisper ASR service running on a Nosana GPU deployment (whisper-asr-webservice).
   nosanaWhisperUrl: (process.env.NOSANA_WHISPER_URL || "").replace(/\/$/, ""),
