@@ -387,6 +387,85 @@ def speak(draft):
         pass
     return draft
 
+# ------------------------------------------------------- free-form LLM (adaptive)
+# The deterministic paths above own every calculation, the confirm ritual and
+# the payment guardrail — those run FIRST and never reach the model. This is
+# the fallback for everything the workflow templates don't cover (invoices,
+# "what can you do", client-specific asks), so one forged employee adapts to
+# the customer instead of dead-ending in a canned line.
+#
+# Money safety is kept by construction: the model is given the code-computed
+# FACTS and told it may state a figure ONLY if it appears there. A reply that
+# introduces an unknown number is discarded and the deterministic line is used.
+def llm_freeform(s, text, fallback):
+    if not (KIMI_KEY and KIMI_URL):
+        return fallback
+
+    facts = []
+    if s.get("closing"):
+        facts.append("Closing recorded: " + ", ".join(f"{k.title()} {rp(v)}" for k, v in s["closing"].items()))
+        facts.append("Closing total: " + rp(sum(s["closing"].values())))
+    if s.get("verdicts"):
+        facts.append("Latest reconciliation:\n" + "\n".join(s["verdicts"]))
+    if CATALOG:
+        facts.append("Price list: " + ", ".join(f"{c['name']} {rp(c['price'])}" for c in CATALOG))
+    if CHANNELS:
+        facts.append("Payment channels: " + ", ".join(
+            f"{c['name'].title()}" + (f" (fee {c['fee_rate'] * 100:g}%)" if c.get("fee_rate") else "")
+            for c in CHANNELS))
+    facts_block = "\n".join(facts) or "(no figures recorded in this conversation yet)"
+
+    system = (
+        f"You are {AGENT}, the AI employee of {BUSINESS} — a real one, working inside their "
+        f"{'WhatsApp' if CHANNELS else 'chat'}. You were configured from a discovery meeting.\n"
+        f"What you know about this business:\n"
+        f"- The painpoint you exist to solve: {PAIN}\n"
+        f"- Owner: {OWNER} · admin: {ADMIN} · workflow: {WORKFLOW}\n"
+        f"- Your job: {'match closings against the bank statement and flag only what needs a human'
+                      if WORKFLOW == 'recon' else 'take orders, compute totals, track payments'}\n\n"
+        f"FACTS (the only figures you may state — computed by code, never by you):\n{facts_block}\n\n"
+        f"Rules:\n"
+        f"- Reply in {'Bahasa Indonesia' if LANG != 'en' else 'English'}. WhatsApp tone: warm, brief, concrete.\n"
+        f"- NEVER state a number, price or amount that is not in FACTS. If asked for one you don't have, "
+        f"say you'll check with {ADMIN} rather than guessing.\n"
+        f"- NEVER confirm a payment as received — that is {ADMIN}'s decision.\n"
+        f"- If asked to do something you genuinely can (read a document they send, track something, "
+        f"summarise) say yes and tell them exactly how to send it. Don't over-promise integrations.\n"
+        f"- 2-4 sentences max. No bullet lists unless they asked for a list."
+    )
+    history = s.setdefault("history", [])[-8:]
+    try:
+        req = urllib.request.Request(
+            KIMI_URL + "/chat/completions",
+            data=json.dumps({
+                "model": KIMI_MODEL, "temperature": 0.5, "max_tokens": 500,
+                "messages": [{"role": "system", "content": system}] + history +
+                            [{"role": "user", "content": text}],
+            }).encode(),
+            headers={"Authorization": f"Bearer {KIMI_KEY}", "Content-Type": "application/json",
+                     "User-Agent": "biks-forge-agent/1.0"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            out = (json.load(r)["choices"][0]["message"]["content"] or "").strip()
+    except Exception:
+        return fallback
+    if not out:
+        return fallback
+
+    # Money guard: every money-sized figure in the reply must exist in FACTS.
+    # Compare on digits alone — "Rp 2.450.000", "2,450,000" and "2450000" are
+    # the same number, and list punctuation must not make a valid reply fail.
+    digits = lambda t: re.sub(r"\D", "", t)
+    known = {digits(t) for t in re.findall(r"\d[\d.,]*", facts_block)}
+    for tok in re.findall(r"\d[\d.,]*", out):
+        d = digits(tok)
+        if len(d) >= 4 and d not in known:   # >=4 digits = an amount, not "2 days"/"0.7%"
+            return fallback
+
+    s["history"] = (s.get("history", []) + [{"role": "user", "content": text},
+                                            {"role": "assistant", "content": out}])[-12:]
+    return out
+
+
 # ---------------------------------------------------------------- session brain
 SESSIONS = {}
 
@@ -442,7 +521,7 @@ def brain_recon(s, text):
     if re.search(r"konfirm|sudah\s*(bayar|transfer|tf)|bukti|lunas|paid", text.lower()):
         return speak(T("payment_guardrail", admin=ADMIN))
 
-    return speak(T("recon_idle"))
+    return llm_freeform(s, text, speak(T("recon_idle")))
 
 def run_recon(s):
     verdicts, fee, reds = reconcile(s["closing"], s["credits"])
@@ -469,8 +548,8 @@ def brain_sales(s, text):
         menu = "\n".join(f"• {c['name']} — {rp(c['price'])}" for c in CATALOG)
         return speak(T("sales_menu", menu=menu))
     if len(text) > 2:
-        return speak(T("sales_offmenu", owner=OWNER))
-    return speak(T("sales_idle"))
+        return llm_freeform(s, text, speak(T("sales_offmenu", owner=OWNER)))
+    return llm_freeform(s, text, speak(T("sales_idle")))
 
 # ---------------------------------------------------------------- chat page
 PAGE = """<!DOCTYPE html><html lang="__LANG__"><head><meta charset="UTF-8">
