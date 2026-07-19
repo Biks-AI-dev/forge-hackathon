@@ -77,19 +77,32 @@ async function refreshNotes() {
 
 // ===== generation bots =====
 
+// PRD generation can run for minutes (thinking model). Two safeguards learned
+// from real back-to-back meetings: /api/reset ABORTS the in-flight run (a
+// zombie from the previous meeting used to hold the busy flag and silently
+// starve the new meeting of its PRD), and the interval loop below retries
+// when a meeting has notes but no PRD yet.
+let prdAbort = null;
+let prdLastAttempt = 0;
+
 async function runPrdBot() {
   if (state.busy.prd) return;
   const epoch = meetingEpoch;
   state.busy.prd = true;
+  prdLastAttempt = Date.now();
+  prdAbort = new AbortController();
   try {
     const tail = state.transcript.slice(-30).map((t) => t.text).join("\n");
-    const prd = await generatePRD(state.notes, tail);
+    const prd = await generatePRD(state.notes, tail, { signal: prdAbort.signal });
     if (epoch === meetingEpoch) state.prd = prd;
   } catch (err) {
-    console.error("[prd]", err.message);
-    if (epoch === meetingEpoch) state.lastError = `prd: ${err.message}`;
+    if (epoch === meetingEpoch) {
+      console.error("[prd]", err.message);
+      state.lastError = `prd: ${err.message}`;
+    }
   } finally {
     state.busy.prd = false;
+    prdAbort = null;
   }
 }
 
@@ -197,7 +210,13 @@ async function forgeCycle(force = false) {
 }
 
 setInterval(() => {
-  if (state.autoForge) forgeCycle().catch((err) => console.error("[forge]", err.message));
+  if (!state.autoForge) return;
+  forgeCycle().catch((err) => console.error("[forge]", err.message));
+  // self-heal: a meeting with notes but no PRD (e.g. its first attempt was
+  // starved or aborted) gets another try, at most once a minute
+  if (state.notes.summary && !state.prd && !state.busy.prd && Date.now() - prdLastAttempt > 60_000) {
+    runPrdBot().catch((err) => console.error("[prd-retry]", err.message));
+  }
 }, FORGE_INTERVAL_MS);
 
 // ===== tiny proxy to the local employee =====
@@ -387,6 +406,8 @@ export function createApp() {
 
   app.post("/api/reset", (req, res) => {
     meetingEpoch += 1;
+    prdAbort?.abort();
+    prdLastAttempt = 0;
     state.transcript = [];
     state.notes = structuredClone(EMPTY_NOTES);
     state.prd = null;

@@ -6,8 +6,9 @@ import { FORGE_PRD_SYSTEM_PROMPT } from "./prd-template.js";
 // the browser via polling, not by blocking on this.
 const REQUEST_TIMEOUT_MS = 120_000;
 
-async function chat(messages, { temperature = 0.4, maxTokens, model, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
+async function chat(messages, { temperature = 0.4, maxTokens, model, timeoutMs = REQUEST_TIMEOUT_MS, signal } = {}) {
   if (!config.kimiApiKey) throw new Error("KIMI_API_KEY is not set in .env");
+  const abort = signal ? AbortSignal.any([AbortSignal.timeout(timeoutMs), signal]) : AbortSignal.timeout(timeoutMs);
 
   const res = await fetch(`${config.kimiBaseUrl}/chat/completions`, {
     method: "POST",
@@ -21,7 +22,7 @@ async function chat(messages, { temperature = 0.4, maxTokens, model, timeoutMs =
       temperature,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
     }),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: abort,
   });
 
   if (!res.ok) {
@@ -106,7 +107,7 @@ export async function updateNotes(currentNotes, newChunk) {
  * notes + raw transcript tail. The system prompt lives in prd-template.js so it
  * can be reviewed and revised independently of the LLM client.
  */
-export async function generatePRD(notes, transcriptTail) {
+export async function generatePRD(notes, transcriptTail, { signal } = {}) {
   const messages = [
     { role: "system", content: FORGE_PRD_SYSTEM_PROMPT },
     {
@@ -117,13 +118,13 @@ export async function generatePRD(notes, transcriptTail) {
     },
   ];
   try {
-    return await chat(messages, { temperature: 0.4, model: config.kimiSmartModel, maxTokens: 32000, timeoutMs: 300_000 });
+    return await chat(messages, { temperature: 0.4, model: config.kimiSmartModel, maxTokens: 16000, timeoutMs: 300_000, signal });
   } catch (err) {
     // Thinking models sometimes burn the whole budget reasoning and emit
     // nothing — fall back to the fast non-thinking model rather than failing.
     if (!/ran out of tokens|empty content/.test(err.message)) throw err;
     console.warn("[prd] smart model overran, falling back to", config.kimiModel);
-    return chat(messages, { temperature: 0.4, model: config.kimiModel, maxTokens: 16000, timeoutMs: 240_000 });
+    return chat(messages, { temperature: 0.4, model: config.kimiModel, maxTokens: 16000, timeoutMs: 240_000, signal });
   }
 }
 
