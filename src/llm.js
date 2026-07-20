@@ -153,6 +153,11 @@ function routeWorkflow(candidate, textBlob) {
 export function validateForgeSpec(raw, notes, textBlob) {
   const spec = typeof raw === "object" && raw !== null ? raw : {};
   spec.workflow = routeWorkflow(spec.workflow, textBlob || JSON.stringify(notes));
+  // Decided in code from what the client actually said — the LLM summarises the
+  // painpoint and routinely drops "into Excel", which is a deliverable, not detail.
+  spec.wants_excel = /excel|spreadsheet|xls\b|google sheet|spread sheet/i.test(
+    (textBlob || "") + JSON.stringify(notes)
+  );
 
   const persona = (spec.persona ||= {});
   persona.language ||= notes.meeting_language === "id" ? "id" : "en";
