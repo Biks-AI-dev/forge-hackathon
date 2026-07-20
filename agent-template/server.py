@@ -56,6 +56,10 @@ CHANNELS = SPEC.get("channels") or []
 CATEGORIES = _get(SPEC, "products", "categories", default=[]) or []
 POLICY = SPEC.get("policy") or {}
 WORKFLOW = SPEC.get("workflow") or ("recon" if CHANNELS else "sales")
+# Did this client ask for Excel? Then every recorded closing is written to a
+# sheet immediately — they should never have to ask for it.
+WANTS_EXCEL = bool(re.search(r"excel|spreadsheet|xls|google sheet|spread sheet",
+                             json.dumps(SPEC, ensure_ascii=False), re.I))
 
 # painpoint: the extractor may store it under several names (schema is extra=allow)
 _pp = SPEC.get("pain_points")
@@ -86,6 +90,14 @@ def rp(n):
 # optional — skipped without keys, and rejected whenever a digit changes — so
 # relying on it to translate leaked Bahasa into English deployments.
 _STR = {
+    "recorded_excel": {
+        "id": "Tercatat ✅ Langsung kutulis ke Excel juga: {link}\n"
+              "Kalau mau kucocokkan sama uang masuk, kirim mutasi banknya 👇",
+        "en": "Recorded ✅ I've written it straight into Excel: {link}\n"
+              "Send the bank statement whenever you want me to match it against money received 👇"},
+    "recon_done_excel": {
+        "id": "\nSudah kuperbarui juga di Excel: {link}",
+        "en": "\nI've updated the Excel file too: {link}"},
     "recorded_send_mutasi": {
         "id": "Tercatat ✅ Sekarang kirim mutasi banknya ya 👇",
         "en": "Recorded ✅ Now send the bank statement 👇"},
@@ -528,6 +540,9 @@ def brain_recon(s, text):
         s["pending_echo"] = None
         if s["credits"]:
             return run_recon(s)
+        if WANTS_EXCEL:
+            # no LLM rewrite here: the link must survive verbatim
+            return T("recorded_excel", link=xlsx_link(s))
         return speak(T("recorded_send_mutasi"))
 
     up = text.upper()
@@ -576,7 +591,13 @@ def brain_recon(s, text):
 def run_recon(s):
     verdicts, fee, reds = reconcile(s["closing"], s["credits"])
     s["verdicts"], s["reds"] = verdicts, reds
-    return speak(summary(s, fee))
+    out = speak(summary(s, fee))
+    if WANTS_EXCEL:
+        out += T("recon_done_excel", link=xlsx_link(s))
+    return out
+
+def xlsx_link(s):
+    return f"/export.xlsx?sid={s.get('sid', 'web')}"
 
 def summary(s, fee=None):
     body = "\n".join(s["verdicts"])
@@ -622,7 +643,19 @@ button{border:none;background:#0F766E;color:#fff;width:44px;height:44px;border-r
 <script>
 const sid = sessionStorage.sid ||= (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()));
 const log = document.getElementById('log');
-function add(cls, text){const d=document.createElement('div');d.className='b '+cls;d.textContent=text;log.appendChild(d);log.scrollTop=1e9;return d}
+function add(cls, text){
+  const d=document.createElement('div');d.className='b '+cls;
+  // linkify the export link (textNodes only — never innerHTML with model output)
+  const re=/((?:https?:[/][/]|[/]export[.]xlsx)[^ ]+)/g; let last=0,m;
+  while((m=re.exec(text))){
+    d.appendChild(document.createTextNode(text.slice(last,m.index)));
+    const a=document.createElement('a');a.href=m[1];a.target='_blank';
+    a.textContent=m[1].indexOf('export.xlsx')>-1?'\uD83D\uDCCA Download Excel':m[1];
+    a.style.cssText='color:#0F766E;font-weight:600;text-decoration:underline';
+    d.appendChild(a); last=m.index+m[1].length;
+  }
+  d.appendChild(document.createTextNode(text.slice(last)));
+  log.appendChild(d);log.scrollTop=1e9;return d}
 let pendingImg=null,pendingFile=null;
 async function send(text, image, file){
   if(text||image){const d=add('me', text||'');
