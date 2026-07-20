@@ -12,9 +12,13 @@ with zero keys).
 The HALO greeting (PRD acceptance: "the halo test") is templated from
 spec.json — name, painpoint, roles interpolated — never freestyle prose.
 """
+import base64
+import io
 import json
 import os
 import re
+import zipfile
+import zlib
 import urllib.request
 from http.server import BaseHTTPRequestHandler
 from socketserver import ThreadingTCPServer
@@ -143,6 +147,12 @@ _STR = {
               "to see the options."},
     "sales_idle": {"id": "Mau pesan apa? 😊 Ketik \"menu\" untuk lihat pilihan.",
                    "en": "What would you like to order? 😊 Type \"menu\" to see the options."},
+    "no_text_in_file": {
+        "id": "File-nya kebaca tapi kosong 🙏 Kalau itu hasil scan, kirim sebagai foto saja ya.",
+        "en": "I opened the file but found no text 🙏 If it's a scan, send it as a photo instead."},
+    "excel_ready": {
+        "id": "Sudah aku rapikan ke Excel 👇 {link} — tinggal buka, angkanya sama persis dengan yang di atas.",
+        "en": "I've put it into Excel for you 👇 {link} — open it, the figures match exactly what's above."},
     "no_vision": {"id": "Aku belum bisa baca foto di sini 🙏 Ketik angkanya sebagai teks ya.",
                   "en": "I can't read photos here yet 🙏 Please type the numbers as text."},
     "glitch": {"id": "Maaf, ada kendala kecil di sisiku 🙏 Coba kirim ulang ya. ({err})",
@@ -245,24 +255,48 @@ def parse_amount(s):
     except ValueError:
         return 0
 
+# Substring aliases: real documents say "DEBIT BCA", "CREDIT VISA", "Card –
+# Credit" — never the bare channel name the spec uses.
+# Longest / most specific first — "GRABFOOD" must win over "GRAB", and the
+# literal channel names must be present, not just their nicknames.
+CHANNEL_ALIASES = [
+    ("GRABFOOD", "GRABFOOD"), ("GRAB FOOD", "GRABFOOD"), ("GRAB", "GRABFOOD"),
+    ("GOFOOD", "GOFOOD"), ("GO FOOD", "GOFOOD"), ("GO-FOOD", "GOFOOD"), ("GOJEK", "GOFOOD"),
+    ("QRIS", "QRIS"), ("QR ", "QRIS"),
+    ("CASH", "CASH"), ("TUNAI", "CASH"),
+    ("TRANSFER", "TRANSFER"), ("TF ", "TRANSFER"),
+    ("MASTERCARD", "CARD"), ("MASTER", "CARD"), ("DEBIT", "CARD"), ("CREDIT", "CARD"),
+    ("KREDIT", "CARD"), ("VISA", "CARD"), ("KARTU", "CARD"), ("CARD", "CARD"),
+]
+MONEY_RE = re.compile(r"\d{1,3}(?:[.,]\d{3})+")
+SKIP_ROWS = ("TOTAL", "SUBTOTAL", "NET SETTLED", "MDR", "FEE", "MID", "TID", "BATCH",
+             "REFUND", "GRAND", "SUMMARY")
+
 def parse_channel_lines(text):
-    """'QRIS: Rp 1.430.000' style lines → {CHANNEL: amount}"""
+    """Closing / EDC slip / POS export lines -> {CHANNEL: amount}.
+    Same channel on several lines (Debit BCA + Credit Visa) is summed."""
     out = {}
-    # Spec channels PLUS the standard Indonesian set — a meeting that only
-    # mentioned "card" must not produce an agent blind to Cash/QRIS/GoFood.
-    known = sorted({c["name"].upper() for c in CHANNELS} | {"CASH", "QRIS", "GOFOOD", "GRABFOOD", "TRANSFER", "CARD"})
-    alias = {"GOJEK": "GOFOOD", "GO FOOD": "GOFOOD", "GO-FOOD": "GOFOOD",
-             "GRAB": "GRABFOOD", "TRANSFER BCA": "TRANSFER", "TF": "TRANSFER", "TUNAI": "CASH"}
+    known = {c["name"].upper() for c in CHANNELS} | {"CASH", "QRIS", "GOFOOD", "GRABFOOD", "TRANSFER", "CARD"}
     for line in text.splitlines():
-        m = NUM_RE.search(line)
-        if not m:
+        up = line.upper()
+        # the label sits before the numbers; totals/fees are not channels
+        label = re.split(r"[0-9]", up)[0]
+        if any(sk in label for sk in SKIP_ROWS):
             continue
-        head = line.split(":")[0].strip().upper()
-        head = alias.get(head, head)
-        for k in known:
-            if k in head or head in k:
-                out[k] = parse_amount(m.group(1))
-                break
+        # A channel row is a short label + figures. Prose ("Card settlements
+        # land T+1 at BCA a/c 5271234567...") must never be read as a row —
+        # that account number was being booked as nine billion rupiah.
+        if len(label.split()) > 4:
+            continue
+        # Money is written with thousand separators (4.250.000); a bare digit
+        # run is a trx count, an account or a reference number, not an amount.
+        nums = MONEY_RE.findall(line)
+        if not nums:
+            continue
+        chan = next((c for token, c in CHANNEL_ALIASES if token in label and c in known), None)
+        if not chan:
+            continue
+        out[chan] = out.get(chan, 0) + max(parse_amount(n) for n in nums)
     return out
 
 def parse_mutasi(text):
@@ -474,7 +508,7 @@ def llm_freeform(s, text, fallback):
 SESSIONS = {}
 
 def brain(sid, msg):
-    s = SESSIONS.setdefault(sid, {"greeted": False, "closing": None, "credits": None,
+    s = SESSIONS.setdefault(sid, {"sid": sid, "greeted": False, "closing": None, "credits": None,
                                   "pending_echo": None, "verdicts": None, "reds": []})
     text = (msg or "").strip()
 
@@ -496,8 +530,15 @@ def brain_recon(s, text):
             return run_recon(s)
         return speak(T("recorded_send_mutasi"))
 
-    looks_mutasi = any(k in text.upper() for k in
-                       ("MUTASI", "SALDO", "KETERANGAN", "SETTLEMENT", "DISBURSE", ",CR", ",DB", "\"CR\"", "\"DB\""))
+    up = text.upper()
+    # An EDC settlement slip / POS export is the SALES side (a closing), even
+    # though it says "SETTLEMENT" — check it first or it looks like a statement.
+    looks_edc = any(k in up for k in
+                    ("EDC", "BATCH CLOSE", "MERCHANT COPY", "MID ", "TID ", "TRACE NO",
+                     "POS EXPORT", "SALES REPORT", "DAILY SALES", "PAYMENT METHOD"))
+    looks_mutasi = (not looks_edc) and any(k in up for k in
+                    ("MUTASI", "SALDO", "KETERANGAN", "REKENING KORAN", "ACCOUNT STATEMENT",
+                     "DISBURSE", ",CR", ",DB", "\"CR\"", "\"DB\""))
     ch = parse_channel_lines(text)
 
     if ch and len(ch) >= 2 and not looks_mutasi:
@@ -524,6 +565,11 @@ def brain_recon(s, text):
     # payment guardrail holds in EVERY workflow: never confirm before the human verifies
     if re.search(r"konfirm|sudah\s*(bayar|transfer|tf)|bukti|lunas|paid", text.lower()):
         return speak(T("payment_guardrail", admin=ADMIN))
+
+    if re.search(r"excel|xls|spreadsheet|spreadsheet|unduh|download|export", text.lower()):
+        if s.get("closing"):
+            return T("excel_ready", link=f"/export.xlsx?sid={s.get('sid','web')}")
+        return llm_freeform(s, text, speak(T("recon_idle")))
 
     return llm_freeform(s, text, speak(T("recon_idle")))
 
@@ -572,22 +618,22 @@ button{border:none;background:#0F766E;color:#fff;width:44px;height:44px;border-r
 </style></head><body>
 <header><b>__AGENT__</b><small>__BIZ__ · AI employee · online</small></header>
 <div id="log"></div>
-<form id="f"><button type="button" id="att" title="__ATTACH__">📎</button><input type="file" id="fi" accept="image/*,.txt,.csv" style="display:none"><input id="m" placeholder="__PLACEHOLDER__" autocomplete="off" autofocus><button>➤</button></form>
+<form id="f"><button type="button" id="att" title="__ATTACH__">📎</button><input type="file" id="fi" accept="image/*,.pdf,.txt,.csv" style="display:none"><input id="m" placeholder="__PLACEHOLDER__" autocomplete="off" autofocus><button>➤</button></form>
 <script>
 const sid = sessionStorage.sid ||= (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()));
 const log = document.getElementById('log');
 function add(cls, text){const d=document.createElement('div');d.className='b '+cls;d.textContent=text;log.appendChild(d);log.scrollTop=1e9;return d}
-let pendingImg=null;
-async function send(text, image){
+let pendingImg=null,pendingFile=null;
+async function send(text, image, file){
   if(text||image){const d=add('me', text||'');
     if(image){const im=document.createElement('img');im.src=image;d.prepend(im);}}
   const t=document.createElement('div');t.className='typing';t.textContent='__TYPING__';log.appendChild(t);log.scrollTop=1e9;
   try{
-    const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,message:text,image})});
+    const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,message:text,image,file})});
     const j=await r.json();t.remove();add('bot', j.reply||'(…)');
   }catch(e){t.remove();add('bot','__OFFLINE__');}
 }
-document.getElementById('f').onsubmit=e=>{e.preventDefault();const m=document.getElementById('m');const v=m.value.trim();if(!v&&!pendingImg)return;m.value='';const img=pendingImg;pendingImg=null;document.getElementById('att').textContent='📎';send(v,img)};
+document.getElementById('f').onsubmit=e=>{e.preventDefault();const m=document.getElementById('m');const v=m.value.trim();if(!v&&!pendingImg&&!pendingFile)return;m.value='';const img=pendingImg,fl=pendingFile;pendingImg=pendingFile=null;document.getElementById('att').textContent='📎';send(v,img,fl)};
 document.getElementById('att').onclick=()=>document.getElementById('fi').click();
 document.getElementById('fi').onchange=()=>{
   const f=document.getElementById('fi').files[0];if(!f)return;
@@ -602,7 +648,7 @@ document.getElementById('fi').onchange=()=>{
       URL.revokeObjectURL(img.src);
     };img.src=URL.createObjectURL(f);
   }
-  else{const rd=new FileReader();rd.onload=()=>{const m=document.getElementById('m');m.value=(m.value?m.value+'\\n':'')+rd.result.slice(0,4000)};rd.readAsText(f);}
+  else{const rd=new FileReader();rd.onload=()=>{pendingFile=rd.result;document.getElementById('att').textContent='📄'};rd.readAsDataURL(f);}
   document.getElementById('fi').value='';
 };
 </script></body></html>"""
@@ -610,6 +656,125 @@ PAGE = (PAGE.replace("__AGENT__", AGENT).replace("__BIZ__", BUSINESS)
             .replace("__LANG__", "en" if LANG == "en" else "id")
             .replace("__ATTACH__", T("ui_attach")).replace("__PLACEHOLDER__", T("ui_placeholder"))
             .replace("__TYPING__", T("ui_typing")).replace("__OFFLINE__", T("ui_offline")))
+
+# ---------------------------------------------------------------- PDF text
+
+def _decode_stream(raw):
+    """Standard filter chains in machine-generated exports: ASCII85+Flate
+    (reportlab), Flate alone, or none."""
+    b = raw.strip()
+    for attempt in (lambda: zlib.decompress(base64.a85decode(b, adobe=True)),
+                    lambda: zlib.decompress(b),
+                    lambda: base64.a85decode(b, adobe=True),
+                    lambda: b):
+        try:
+            out = attempt()
+            if b"Tj" in out or b"TJ" in out:
+                return out
+        except Exception:
+            continue
+    return b""
+
+def _unescape(b):
+    b = re.sub(rb"\\([0-7]{1,3})", lambda m: bytes([int(m.group(1), 8) & 0xFF]), b)
+    b = re.sub(rb"\\([nrtbf])", lambda m: {b"n": b"\n", b"r": b"", b"t": b" ",
+                                           b"b": b"", b"f": b""}[m.group(1)], b)
+    return re.sub(rb"\\(.)", rb"\1", b)
+
+def pdf_text(data):
+    """Text out of a machine-generated PDF (POS / accounting exports) using only
+    the stdlib — the agent ships into a sandbox with no pip. Fragments are
+    grouped back into rows by their y position and ordered by x, so a table row
+    stays one line: 'Cash 34 3.450.000 0 3.450.000'."""
+    items = []  # (page, -y, x, text)
+    for page, sm in enumerate(re.finditer(rb"stream\r?\n(.*?)endstream", data, re.S)):
+        chunk = _decode_stream(sm.group(1))
+        if not chunk:
+            continue
+        x = y = 0.0
+        for op in re.finditer(
+            rb"(-?[\d.]+)\s+(-?[\d.]+)\s+T[dD]"
+            rb"|(?:[-\d.]+\s+){4}(-?[\d.]+)\s+(-?[\d.]+)\s+Tm"
+            rb"|(\((?:\\.|[^\\()])*\))\s*Tj"
+            rb"|(\[(?:[^\[\]\\]|\\.)*\])\s*TJ", chunk):
+            if op.group(1):
+                x, y = float(op.group(1)), float(op.group(2))
+            elif op.group(3):
+                x, y = float(op.group(3)), float(op.group(4))
+            elif op.group(5):
+                items.append((page, -y, x, _unescape(op.group(5)[1:-1]).decode("latin-1", "replace")))
+            elif op.group(6):
+                parts = re.findall(rb"\((?:\\.|[^\\()])*\)", op.group(6))
+                items.append((page, -y, x, "".join(_unescape(p[1:-1]).decode("latin-1", "replace")
+                                                   for p in parts)))
+    lines, row, key = [], [], None
+    for page, negy, x, text in sorted(items):
+        k = (page, round(negy / 3))          # ~3pt tolerance = same visual row
+        if key is not None and k != key:
+            lines.append(" ".join(t for _, t in sorted(row)))
+            row = []
+        key, _ = k, row.append((x, text))
+    if row:
+        lines.append(" ".join(t for _, t in sorted(row)))
+    return "\n".join(l.strip() for l in lines if l.strip())
+
+
+# ---------------------------------------------------------------- XLSX export
+def build_xlsx(rows):
+    """A real .xlsx from the stdlib (it is a zip of XML) — the client asked for
+    Excel, so the agent hands them a file Excel opens, not a screenshot."""
+    def esc(v):
+        return (str(v).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+    sheet = ['<?xml version="1.0" encoding="UTF-8"?>'
+             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>']
+    for r, row in enumerate(rows, 1):
+        cells = []
+        for c, val in enumerate(row):
+            ref = f"{chr(65 + c)}{r}"
+            if isinstance(val, (int, float)):
+                cells.append(f'<c r="{ref}"><v>{val}</v></c>')
+            else:
+                cells.append(f'<c r="{ref}" t="inlineStr"><is><t>{esc(val)}</t></is></c>')
+        sheet.append(f'<row r="{r}">' + "".join(cells) + "</row>")
+    sheet.append("</sheetData></worksheet>")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml",
+                   '<?xml version="1.0" encoding="UTF-8"?>'
+                   '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                   '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                   '<Default Extension="xml" ContentType="application/xml"/>'
+                   '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+                   '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+                   "</Types>")
+        z.writestr("_rels/.rels",
+                   '<?xml version="1.0" encoding="UTF-8"?>'
+                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+                   "</Relationships>")
+        z.writestr("xl/workbook.xml",
+                   '<?xml version="1.0" encoding="UTF-8"?>'
+                   '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                   'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                   '<sheets><sheet name="Reconciliation" sheetId="1" r:id="rId1"/></sheets></workbook>')
+        z.writestr("xl/_rels/workbook.xml.rels",
+                   '<?xml version="1.0" encoding="UTF-8"?>'
+                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                   '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+                   "</Relationships>")
+        z.writestr("xl/worksheets/sheet1.xml", "".join(sheet))
+    return buf.getvalue()
+
+def recon_rows(s):
+    """The reconciliation as spreadsheet rows — same numbers the chat showed."""
+    rows = [["Channel", "Sales (closing)", "Status"]]
+    for k, v in (s.get("closing") or {}).items():
+        status = next((v2 for v2 in (s.get("verdicts") or []) if k.title() in v2), "")
+        rows.append([k.title(), v, re.sub(r"[🟢🟡🔴]", "", status).strip() or "recorded"])
+    if s.get("closing"):
+        rows.append(["TOTAL", sum(s["closing"].values()), ""])
+    return rows
+
 
 # ---------------------------------------------------------------- image OCR
 def ocr_image(data_url):
@@ -649,6 +814,20 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if self.path.startswith("/export.xlsx"):
+            sid = self.path.partition("sid=")[2] or "web"
+            rows = recon_rows(SESSIONS.get(sid) or {})
+            if len(rows) <= 1:
+                return self._json(404, {"error": "nothing recorded yet"})
+            body = build_xlsx(rows)
+            self.send_response(200)
+            self.send_header("Content-Type",
+                             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            self.send_header("Content-Disposition", 'attachment; filename="reconciliation.xlsx"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/health":
             return self._json(200, {"status": "ok"})
         if self.path == "/":
@@ -672,8 +851,16 @@ class Handler(BaseHTTPRequestHandler):
         sid = str(payload.get("session_id") or self.client_address[0])
         message = str(payload.get("message") or "")
         image = payload.get("image")
+        doc = payload.get("file")          # data URL: PDF / txt / csv
         try:
-            if image:
+            if doc:
+                head, _, b64 = str(doc).partition(",")
+                raw = base64.b64decode(b64 or "")
+                extracted = pdf_text(raw) if "pdf" in head.lower() else raw.decode("utf-8", "replace")
+                if not extracted.strip():
+                    return self._json(200, {"reply": T("no_text_in_file")})
+                message = (message + "\n" if message else "") + extracted
+            elif image:
                 extracted = ocr_image(str(image))
                 if extracted is None:
                     return self._json(200, {"reply": T("no_vision")})
