@@ -442,6 +442,18 @@ export function createApp() {
 
   // The local employee, proxied: page + chat + health.
   app.get("/employee", (req, res) => agentProxy(res, "/", {}));
+  // The agent's Excel export, proxied so the download link works from the console.
+  app.get("/export.xlsx", async (req, res) => {
+    try {
+      const r = await fetch(`http://127.0.0.1:${AGENT_PORT}/export.xlsx?sid=${encodeURIComponent(req.query.sid || "web")}`);
+      if (!r.ok) return res.status(r.status).json({ error: "nothing recorded yet" });
+      res.type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", 'attachment; filename="reconciliation.xlsx"');
+      res.send(Buffer.from(await r.arrayBuffer()));
+    } catch {
+      res.status(503).json({ error: "employee not running" });
+    }
+  });
   app.post("/chat", express.json(), (req, res) =>
     agentProxy(res, "/chat", {
       method: "POST",
