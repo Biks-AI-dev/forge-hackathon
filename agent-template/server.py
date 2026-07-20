@@ -58,8 +58,11 @@ POLICY = SPEC.get("policy") or {}
 WORKFLOW = SPEC.get("workflow") or ("recon" if CHANNELS else "sales")
 # Did this client ask for Excel? Then every recorded closing is written to a
 # sheet immediately — they should never have to ask for it.
-WANTS_EXCEL = bool(re.search(r"excel|spreadsheet|xls|google sheet|spread sheet",
-                             json.dumps(SPEC, ensure_ascii=False), re.I))
+# Set in code by the Architect (llm.js validateForgeSpec) from what the client
+# actually said; the regex is a fallback for hand-written specs.
+WANTS_EXCEL = bool(SPEC.get("wants_excel")) or bool(
+    re.search(r"excel|spreadsheet|xls|google sheet|spread sheet",
+              json.dumps(SPEC, ensure_ascii=False), re.I))
 
 # painpoint: the extractor may store it under several names (schema is extra=allow)
 _pp = SPEC.get("pain_points")
