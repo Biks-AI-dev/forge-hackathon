@@ -174,6 +174,8 @@ _STR = {
                "en": "Sorry, small glitch on my side 🙏 Please send that again. ({err})"},
     "ui_placeholder": {"id": "Ketik pesan…", "en": "Type a message…"},
     "ui_typing": {"id": "mengetik…", "en": "typing…"},
+    "ui_reading_photo": {"id": "membaca foto", "en": "reading the photo"},
+    "ui_reading_doc": {"id": "membaca dokumen", "en": "reading the document"},
     "ui_offline": {"id": "⚠️ koneksi terputus, coba lagi", "en": "⚠️ connection lost, try again"},
     "ui_attach": {"id": "Kirim foto closing / mutasi / file", "en": "Send a closing / statement photo or file"},
 }
@@ -663,11 +665,16 @@ let pendingImg=null,pendingFile=null;
 async function send(text, image, file){
   if(text||image){const d=add('me', text||'');
     if(image){const im=document.createElement('img');im.src=image;d.prepend(im);}}
-  const t=document.createElement('div');t.className='typing';t.textContent='__TYPING__';log.appendChild(t);log.scrollTop=1e9;
+  const t=document.createElement('div');t.className='typing';
+  const label=image?'__READPHOTO__':file?'__READDOC__':'__TYPING__';
+  t.textContent=label;log.appendChild(t);log.scrollTop=1e9;
+  // reading a photo runs ~9s on the vision model — show it is working
+  const t0=Date.now();
+  const tick=setInterval(()=>{t.textContent=label+' '+((Date.now()-t0)/1000).toFixed(0)+'s';},1000);
   try{
     const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,message:text,image,file})});
-    const j=await r.json();t.remove();add('bot', j.reply||'(…)');
-  }catch(e){t.remove();add('bot','__OFFLINE__');}
+    const j=await r.json();clearInterval(tick);t.remove();add('bot', j.reply||'(…)');
+  }catch(e){clearInterval(tick);t.remove();add('bot','__OFFLINE__');}
 }
 document.getElementById('f').onsubmit=e=>{e.preventDefault();const m=document.getElementById('m');const v=m.value.trim();if(!v&&!pendingImg&&!pendingFile)return;m.value='';const img=pendingImg,fl=pendingFile;pendingImg=pendingFile=null;document.getElementById('att').textContent='📎';send(v,img,fl)};
 document.getElementById('att').onclick=()=>document.getElementById('fi').click();
@@ -691,7 +698,8 @@ document.getElementById('fi').onchange=()=>{
 PAGE = (PAGE.replace("__AGENT__", AGENT).replace("__BIZ__", BUSINESS)
             .replace("__LANG__", "en" if LANG == "en" else "id")
             .replace("__ATTACH__", T("ui_attach")).replace("__PLACEHOLDER__", T("ui_placeholder"))
-            .replace("__TYPING__", T("ui_typing")).replace("__OFFLINE__", T("ui_offline")))
+            .replace("__TYPING__", T("ui_typing")).replace("__OFFLINE__", T("ui_offline"))
+            .replace("__READPHOTO__", T("ui_reading_photo")).replace("__READDOC__", T("ui_reading_doc")))
 
 # ---------------------------------------------------------------- PDF text
 
