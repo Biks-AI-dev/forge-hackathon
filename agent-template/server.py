@@ -415,14 +415,17 @@ def llm_freeform(s, text, fallback):
             for c in CHANNELS))
     facts_block = "\n".join(facts) or "(no figures recorded in this conversation yet)"
 
+    # NOTE: keep every f-string expression on ONE line — multi-line expressions
+    # inside f-strings are Python 3.12+ only and the deploy target runs 3.10.
+    job = ("match closings against the bank statement and flag only what needs a human"
+           if WORKFLOW == "recon" else "take orders, compute totals, track payments")
     system = (
         f"You are {AGENT}, the AI employee of {BUSINESS} — a real one, working inside their "
         f"{'WhatsApp' if CHANNELS else 'chat'}. You were configured from a discovery meeting.\n"
         f"What you know about this business:\n"
         f"- The painpoint you exist to solve: {PAIN}\n"
         f"- Owner: {OWNER} · admin: {ADMIN} · workflow: {WORKFLOW}\n"
-        f"- Your job: {'match closings against the bank statement and flag only what needs a human'
-                      if WORKFLOW == 'recon' else 'take orders, compute totals, track payments'}\n\n"
+        f"- Your job: {job}\n\n"
         f"FACTS (the only figures you may state — computed by code, never by you):\n{facts_block}\n\n"
         f"Rules:\n"
         f"- Reply in {'Bahasa Indonesia' if LANG != 'en' else 'English'}. WhatsApp tone: warm, brief, concrete.\n"
