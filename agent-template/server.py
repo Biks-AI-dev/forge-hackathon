@@ -653,7 +653,7 @@ function add(cls, text){
   while((m=re.exec(text))){
     d.appendChild(document.createTextNode(text.slice(last,m.index)));
     const a=document.createElement('a');a.href=m[1];a.target='_blank';
-    a.textContent=m[1].indexOf('export.xlsx')>-1?'\uD83D\uDCCA Download Excel':m[1];
+    a.textContent=m[1].indexOf('export.xlsx')>-1?'📊 Download Excel':m[1];
     a.style.cssText='color:#0F766E;font-weight:600;text-decoration:underline';
     d.appendChild(a); last=m.index+m[1].length;
   }
@@ -867,7 +867,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/health":
             return self._json(200, {"status": "ok"})
         if self.path == "/":
-            body = PAGE.encode("utf-8")
+            body = PAGE.encode("utf-8", "replace")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
