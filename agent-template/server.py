@@ -631,20 +631,143 @@ def brain_sales(s, text):
 PAGE = """<!DOCTYPE html><html lang="__LANG__"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__AGENT__ · __BIZ__</title><style>
-*{box-sizing:border-box;margin:0}body{font-family:'Segoe UI',system-ui,sans-serif;background:#EFEAE2;height:100dvh;display:flex;flex-direction:column}
-header{background:#0F766E;color:#fff;padding:12px 16px}header b{font-size:15px;display:block}header small{opacity:.85;font-size:11.5px}
-#log{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:8px}
-.b{max-width:86%;padding:8px 12px;border-radius:10px;font-size:14px;line-height:1.45;white-space:pre-wrap;box-shadow:0 1px 1px rgba(0,0,0,.08)}
-.me{background:#D9FDD3;align-self:flex-end;border-top-right-radius:3px}
-.bot{background:#fff;align-self:flex-start;border-top-left-radius:3px}
-.typing{color:#888;font-size:12px;align-self:flex-start;padding:0 4px}
-form{display:flex;gap:8px;padding:10px 12px;background:#F0F2F5}
-input{flex:1;border:none;border-radius:20px;padding:11px 16px;font-size:14px;outline:none}
-button{border:none;background:#0F766E;color:#fff;width:44px;height:44px;border-radius:50%;font-size:17px;cursor:pointer}\n#att{background:#fff;color:#54656F;border:1px solid #ddd}\n.b img{max-width:100%;border-radius:8px;display:block;margin-bottom:4px}
-</style></head><body>
-<header><b>__AGENT__</b><small>__BIZ__ · AI employee · online</small></header>
-<div id="log"></div>
-<form id="f"><button type="button" id="att" title="__ATTACH__">📎</button><input type="file" id="fi" accept="image/*,.pdf,.txt,.csv" style="display:none"><input id="m" placeholder="__PLACEHOLDER__" autocomplete="off" autofocus><button>➤</button></form>
+*{box-sizing:border-box;margin:0}
+html,body{height:100dvh}
+body{font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+#shell{flex:1;display:flex;min-height:0}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+#log{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.b{max-width:86%;padding:8px 12px;border-radius:10px;font-size:14px;line-height:1.45;white-space:pre-wrap}
+.me{align-self:flex-end}.bot{align-self:flex-start}
+.b img{max-width:100%;border-radius:8px;display:block;margin-bottom:4px}
+.typing{font-size:12px;align-self:flex-start;padding:0 4px}
+form{display:flex;gap:8px;align-items:center}
+#fi{display:none}
+svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---- demo skin switcher (obviously a control, not part of either UI) ---- */
+#skinbar{position:fixed;top:9px;right:14px;z-index:50;display:flex;align-items:center;gap:4px;
+  background:rgba(20,20,20,.6);backdrop-filter:blur(6px);padding:4px 5px 4px 10px;border-radius:20px;
+  box-shadow:0 2px 10px rgba(0,0,0,.35);font-size:12px;color:#fff}
+#skinbar span{opacity:.65;margin-right:2px}
+#skinbar button{border:none;background:transparent;color:#fff;opacity:.55;padding:5px 12px;border-radius:14px;cursor:pointer;font-size:12px;font-weight:600}
+#skinbar button.on{background:#fff;color:#151515;opacity:1}
+
+/* ===================== WHATSAPP SKIN ===================== */
+body[data-skin="wa"]{background:#EFEAE2}
+body[data-skin="wa"] .tm-rail,body[data-skin="wa"] .tm-list,body[data-skin="wa"] .tm-head,body[data-skin="wa"] .tm-only{display:none!important}
+body[data-skin="wa"] .wa-head{background:#0F766E;color:#fff;padding:12px 16px}
+body[data-skin="wa"] .wa-head b{font-size:15px;display:block}
+body[data-skin="wa"] .wa-head small{opacity:.85;font-size:11.5px}
+body[data-skin="wa"] #log{padding:14px 12px;background:#EFEAE2}
+body[data-skin="wa"] .b{box-shadow:0 1px 1px rgba(0,0,0,.08)}
+body[data-skin="wa"] .me{background:#D9FDD3;border-top-right-radius:3px}
+body[data-skin="wa"] .bot{background:#fff;border-top-left-radius:3px}
+body[data-skin="wa"] .typing{color:#888}
+body[data-skin="wa"] form{padding:10px 12px;background:#F0F2F5}
+body[data-skin="wa"] #m{flex:1;border:none;border-radius:20px;padding:11px 16px;font-size:14px;outline:none}
+body[data-skin="wa"] #send{border:none;background:#0F766E;color:#fff;width:44px;height:44px;border-radius:50%;font-size:17px;cursor:pointer}
+body[data-skin="wa"] #att{background:#fff;color:#54656F;border:1px solid #ddd;width:44px;height:44px;border-radius:50%;cursor:pointer;font-size:17px}
+
+/* ===================== MICROSOFT TEAMS SKIN ===================== */
+body[data-skin="teams"]{background:#1f1f1f;color:#e6e6e6}
+body[data-skin="teams"] .wa-head{display:none}
+body[data-skin="teams"] .tm-ava{width:32px;height:32px;flex:0 0 32px;border-radius:8px;background:linear-gradient(135deg,#4f52c9,#7b83eb);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px}
+/* left app rail */
+body[data-skin="teams"] .tm-rail{display:flex;flex-direction:column;align-items:center;gap:2px;width:60px;background:#2b2b2b;padding:8px 0;border-right:1px solid #000}
+body[data-skin="teams"] .tm-railbtn{position:relative;width:44px;height:44px;border:none;background:transparent;color:#c3c3c3;border-radius:6px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;font-size:9px}
+body[data-skin="teams"] .tm-railbtn:hover{background:#383838}
+body[data-skin="teams"] .tm-railbtn.on{color:#fff}
+body[data-skin="teams"] .tm-railbtn.on::before{content:"";position:absolute;left:-8px;top:11px;bottom:11px;width:3px;border-radius:3px;background:#7b83eb}
+/* chat list */
+body[data-skin="teams"] .tm-list{display:flex;flex-direction:column;width:290px;background:#1b1a1a;border-right:1px solid #000;min-width:0}
+body[data-skin="teams"] .tm-list-head{padding:14px 14px 8px;display:flex;align-items:center;justify-content:space-between}
+body[data-skin="teams"] .tm-list-head b{font-size:19px}
+body[data-skin="teams"] .tm-chips{display:flex;gap:6px;padding:0 14px 10px}
+body[data-skin="teams"] .tm-chip{font-size:12px;color:#d0d0d0;background:#2d2c2c;border:1px solid #3a3a3a;border-radius:14px;padding:3px 11px}
+body[data-skin="teams"] .tm-sec{font-size:11px;color:#8a8a8a;padding:6px 14px 2px;text-transform:uppercase;letter-spacing:.4px}
+body[data-skin="teams"] .tm-item{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:0 6px;border-radius:6px;cursor:pointer}
+body[data-skin="teams"] .tm-item:hover{background:#232222}
+body[data-skin="teams"] .tm-item.on{background:#2d2c2c}
+body[data-skin="teams"] .tm-item .nm{font-size:14px;color:#f3f3f3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-skin="teams"] .tm-item .pv{font-size:12px;color:#9a9a9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body[data-skin="teams"] .tm-item .meta{margin-left:auto;font-size:11px;color:#8a8a8a}
+body[data-skin="teams"] .tm-dot{width:8px;height:8px;border-radius:50%;background:#7b83eb;margin-left:auto}
+/* header */
+body[data-skin="teams"] .tm-head{display:flex;align-items:center;gap:12px;height:52px;padding:0 16px;background:#1f1f1f;border-bottom:1px solid #000}
+body[data-skin="teams"] .tm-head .nm{font-size:15px;font-weight:600;color:#fff}
+body[data-skin="teams"] .tm-tabs{display:flex;gap:18px;margin-left:8px}
+body[data-skin="teams"] .tm-tabs span{font-size:14px;color:#b8b8b8;padding:16px 0;cursor:pointer}
+body[data-skin="teams"] .tm-tabs span.on{color:#fff;box-shadow:inset 0 -2px 0 #7b83eb}
+body[data-skin="teams"] .tm-head-ico{margin-left:auto;display:flex;gap:6px;color:#c3c3c3}
+body[data-skin="teams"] .tm-head-ico button{width:34px;height:34px;border:none;background:transparent;color:inherit;border-radius:6px;cursor:pointer;display:grid;place-items:center}
+body[data-skin="teams"] .tm-head-ico button:hover{background:#333}
+/* messages */
+body[data-skin="teams"] #log{padding:18px 22px 10px;background:#1f1f1f;gap:14px}
+body[data-skin="teams"] .b{box-shadow:none;border-radius:8px}
+body[data-skin="teams"] .me{background:#5b5fc7;color:#fff}
+body[data-skin="teams"] .bot{background:#2d2c2c;color:#eaeaea;position:relative;margin-left:44px}
+body[data-skin="teams"] .bot::before{content:"➤";position:absolute;left:-44px;top:0;width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,#4f52c9,#7b83eb);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
+body[data-skin="teams"] .typing{color:#9a9a9a;margin-left:44px}
+/* compose box */
+body[data-skin="teams"] form{margin:8px 16px 16px;padding:6px 6px 6px 10px;background:#2d2c2c;border:1px solid #3d3c3c;border-radius:8px;gap:4px}
+body[data-skin="teams"] #m{order:0;flex:1;background:transparent;border:none;color:#e9e9e9;outline:none;font-size:14px;padding:7px 4px}
+body[data-skin="teams"] #m::placeholder{color:#9a9a9a}
+body[data-skin="teams"] .tm-compose{order:1;display:flex;gap:2px;color:#c3c3c3}
+body[data-skin="teams"] .tm-compose button{width:32px;height:32px;border:none;background:transparent;color:inherit;border-radius:6px;cursor:pointer;display:grid;place-items:center}
+body[data-skin="teams"] .tm-compose button:hover{background:#3a3a3a}
+body[data-skin="teams"] #att{order:2;background:transparent;border:none;color:#c3c3c3;width:32px;height:32px;border-radius:6px;cursor:pointer;font-size:15px}
+body[data-skin="teams"] #att:hover{background:#3a3a3a}
+body[data-skin="teams"] #send{order:3;background:transparent;border:none;color:#7b83eb;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:16px}
+body[data-skin="teams"] #send:hover{background:#3a3a3a}
+@media(max-width:820px){body[data-skin="teams"] .tm-list{display:none}}
+@media(max-width:560px){body[data-skin="teams"] .tm-rail{display:none}}
+</style></head><body data-skin="wa">
+<div id="skinbar"><span>Preview:</span><button data-skin-btn="wa">WhatsApp</button><button data-skin-btn="teams">Teams</button></div>
+<div id="shell">
+  <nav class="tm-rail tm-only">
+    <button class="tm-railbtn"><svg viewBox="0 0 24 24"><circle cx="5" cy="5" r="1.4"/><circle cx="12" cy="5" r="1.4"/><circle cx="19" cy="5" r="1.4"/><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/><circle cx="5" cy="19" r="1.4"/><circle cx="12" cy="19" r="1.4"/><circle cx="19" cy="19" r="1.4"/></svg>Apps</button>
+    <button class="tm-railbtn"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>Activity</button>
+    <button class="tm-railbtn on"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-4-.9L3 21l1.9-4.9a8.4 8.4 0 0 1-.9-4A8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/></svg>Chat</button>
+    <button class="tm-railbtn"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Calendar</button>
+    <button class="tm-railbtn"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7 12.8 12.8 0 0 0 .7 2.8 2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4 12.8 12.8 0 0 0 2.8.7 2 2 0 0 1 1.7 2z"/></svg>Calls</button>
+  </nav>
+  <aside class="tm-list tm-only">
+    <div class="tm-list-head"><b>Chat</b></div>
+    <div class="tm-chips"><span class="tm-chip">Unread</span><span class="tm-chip">Channels</span><span class="tm-chip">Chats</span></div>
+    <div class="tm-sec">Chats</div>
+    <div class="tm-item on"><span class="tm-ava">➤</span><div style="min-width:0"><div class="nm">__AGENT__</div><div class="pv">Yep, I'm here 👋</div></div><span class="tm-dot"></span></div>
+    <div class="tm-item"><span class="tm-ava" style="background:#6c4a9c">OW</span><div style="min-width:0"><div class="nm">Owner (WA)</div><div class="pv">Thanks, noted 👍</div></div><span class="meta">Tue</span></div>
+    <div class="tm-item"><span class="tm-ava" style="background:#3a7d5d">FN</span><div style="min-width:0"><div class="nm">Finance</div><div class="pv">Reconciliation done</div></div><span class="meta">Mon</span></div>
+  </aside>
+  <main class="main">
+    <header class="wa-head"><b>__AGENT__</b><small>__BIZ__ · AI employee · online</small></header>
+    <header class="tm-head tm-only">
+      <span class="tm-ava">➤</span>
+      <span class="nm">__AGENT__</span>
+      <nav class="tm-tabs"><span class="on">Chat</span><span>Shared</span></nav>
+      <div class="tm-head-ico">
+        <button title="Call"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7 12.8 12.8 0 0 0 .7 2.8 2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4 12.8 12.8 0 0 0 2.8.7 2 2 0 0 1 1.7 2z"/></svg></button>
+        <button title="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+        <button title="More"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg></button>
+      </div>
+    </header>
+    <div id="log"></div>
+    <form id="f">
+      <button type="button" id="att" title="__ATTACH__">📎</button>
+      <input type="file" id="fi" accept="image/*,.pdf,.txt,.csv">
+      <input id="m" placeholder="__PLACEHOLDER__" autocomplete="off" autofocus>
+      <span class="tm-compose tm-only">
+        <button type="button" title="Format"><svg viewBox="0 0 24 24"><path d="M4 7V5h16v2M9 5v14M7 19h4"/></svg></button>
+        <button type="button" title="Emoji"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/></svg></button>
+      </span>
+      <button id="send">➤</button>
+    </form>
+  </main>
+</div>
 <script>
 const sid = sessionStorage.sid ||= (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()));
 const log = document.getElementById('log');
@@ -694,6 +817,12 @@ document.getElementById('fi').onchange=()=>{
   else{const rd=new FileReader();rd.onload=()=>{pendingFile=rd.result;document.getElementById('att').textContent='📄'};rd.readAsDataURL(f);}
   document.getElementById('fi').value='';
 };
+// ---- skin switcher: same chat, two chromes (WhatsApp / MS Teams) ----
+const skinBtns=document.querySelectorAll('#skinbar [data-skin-btn]');
+function setSkin(s){document.body.dataset.skin=s;try{sessionStorage.skin=s}catch(e){}
+  skinBtns.forEach(b=>b.classList.toggle('on',b.dataset.skinBtn===s));log.scrollTop=1e9;}
+skinBtns.forEach(b=>b.onclick=()=>setSkin(b.dataset.skinBtn));
+setSkin((()=>{try{return sessionStorage.skin}catch(e){}})()||'wa');
 </script></body></html>"""
 PAGE = (PAGE.replace("__AGENT__", AGENT).replace("__BIZ__", BUSINESS)
             .replace("__LANG__", "en" if LANG == "en" else "id")
