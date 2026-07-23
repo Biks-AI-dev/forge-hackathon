@@ -145,7 +145,14 @@ async def forge(request: Request):
 
     spec = validate_forge_spec(raw)
     spec_dict = spec.model_dump(mode="json")
-    slug = slugify(spec.resolved_business_name())
+    # Workflow is part of the identity: the same business can now forge one
+    # agent per workflow (Meeting Mode's multi-topic pipeline), and those
+    # must coexist, not replace each other. Specs without a workflow keep
+    # the plain business-name slug (legacy behavior).
+    slug_source = spec.resolved_business_name()
+    if spec.workflow:
+        slug_source = f"{slug_source} {spec.workflow}"
+    slug = slugify(slug_source)
     h = spec_hash(spec_dict)
 
     lock = await registry.lock_for(slug)

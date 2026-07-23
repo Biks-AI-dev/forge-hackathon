@@ -141,142 +141,213 @@ async def _run(
             return
     log.info("job=%s extraction ok excel=%d pdf=%d", job_id, len(excel_summaries), len(pdf_summaries))
 
-    # --- Extract + generate (LLM) + validate, with one retry of the pair ---
+    # --- Map topics (the fix for "everything merges into one spec") ---
+    # A meeting that covers two distinct pains (e.g. order chaos AND bank
+    # reconciliation) used to be crammed into one spec because the Architect
+    # was told to "pick ONE workflow" over the whole transcript. The Router
+    # pass segments first; each detected workflow then gets its own scoped
+    # spec and its own agent. `None` in `topics` means the legacy
+    # whole-transcript single-spec path.
+    topics: list[Optional[dict]]
+    if continuation_workflow:
+        # "Record again" corrects ONE already-forged business/workflow —
+        # not a fresh routing decision, so no re-mapping.
+        topics = [None]
+    else:
+        store.set_state(job_id, JobState.MAPPING_TOPICS)
+        try:
+            mapped = await asyncio.wait_for(
+                asyncio.to_thread(llm.map_topics, result.text),
+                timeout=config.LLM_TIMEOUT_S + 15,
+            )
+            job.topics = mapped
+            topics = list(mapped)
+            log.info("job=%s topic map: %s", job_id, [t["workflow"] for t in mapped])
+        except Exception as exc:
+            # Non-fatal by design: a Router failure degrades to the legacy
+            # single-spec path instead of failing the whole job.
+            log.warning("job=%s topic mapping failed (%s) — single-spec fallback", job_id, exc)
+            topics = [None]
+
+    # --- Per topic: generate + validate, with one retry of the pair ---
     # Gate 2 rehearsal measured ~50% first-try clean-success rate across
     # generation AND validation combined (mix of transient timeouts and
     # legitimate validation catches — LLM sampling variance, not a
     # systematic bug). Retrying the pair, not just generation alone, means
     # a validation catch (e.g. empty guardrails) also gets a second shot
-    # instead of failing the job outright. A single retry trades a few
-    # extra seconds for meaningfully better odds on a one-take stage demo,
-    # without masking a genuinely bad input: if attempt 2 also fails, the
-    # user sees that attempt's specific error, not a generic "gave up".
+    # instead of failing the job outright.
     max_attempts = 2
-    spec = None
-    raw_spec = None
     last_error: tuple[str, str, list] = ("forgespec_generation_failed", "no attempt completed", [])
+    validated: list[tuple[dict, object]] = []  # (raw_spec, validated ForgeSpec)
 
-    for attempt in range(1, max_attempts + 1):
-        will_retry = attempt < max_attempts
-        store.set_state(job_id, JobState.EXTRACTING_FORGESPEC)
-        try:
-            # requests' `timeout=` only bounds the gap *between* reads, not
-            # the total call — a slow trickle of bytes can outlive it
-            # indefinitely (observed live: a job hung 2+ minutes past
-            # LLM_TIMEOUT_S=60 with no error). This wait_for is the real
-            # upper bound the job-facing user sees; it can't kill the
-            # underlying thread (blocking requests calls aren't
-            # cancellable), so a hung call still burns a worker thread in
-            # the background — acceptable for a hackathon single-process
-            # demo, not for production.
-            attempt_spec = await asyncio.wait_for(
-                asyncio.to_thread(
-                    llm.generate_forge_spec,
-                    transcript=result.text,
-                    excel_summaries=excel_summaries,
-                    pdf_summaries=pdf_summaries,
-                    research_context=research_context,
-                    workflow_hint=continuation_workflow,
-                ),
-                timeout=config.LLM_TIMEOUT_S + 15,
-            )
-        except asyncio.TimeoutError:
-            last_error = ("forgespec_generation_failed", f"LLM call exceeded {config.LLM_TIMEOUT_S + 15:.0f}s", [])
-            log.warning("job=%s attempt %d/%d: LLM timeout, %s", job_id, attempt, max_attempts,
-                        "retrying" if will_retry else "giving up")
-            continue
-        except llm.LLMError as exc:
-            last_error = ("forgespec_generation_failed", str(exc), [])
-            log.warning("job=%s attempt %d/%d: LLM error (%s), %s", job_id, attempt, max_attempts, exc,
-                        "retrying" if will_retry else "giving up")
-            continue
-        except Exception as exc:
-            log.exception("job=%s unexpected LLM error", job_id)
-            last_error = ("forgespec_generation_failed", f"unexpected error: {exc}", [])
-            continue
+    for topic in topics:
+        others = [t for t in topics if t is not None and t is not topic] or None
+        spec = None
+        raw_spec = None
+        for attempt in range(1, max_attempts + 1):
+            will_retry = attempt < max_attempts
+            store.set_state(job_id, JobState.EXTRACTING_FORGESPEC)
+            try:
+                # requests' `timeout=` only bounds the gap *between* reads, not
+                # the total call — a slow trickle of bytes can outlive it
+                # indefinitely (observed live: a job hung 2+ minutes past
+                # LLM_TIMEOUT_S=60 with no error). This wait_for is the real
+                # upper bound the job-facing user sees; it can't kill the
+                # underlying thread (blocking requests calls aren't
+                # cancellable), so a hung call still burns a worker thread in
+                # the background — acceptable for a hackathon single-process
+                # demo, not for production.
+                attempt_spec = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        llm.generate_forge_spec,
+                        transcript=result.text,
+                        excel_summaries=excel_summaries,
+                        pdf_summaries=pdf_summaries,
+                        research_context=research_context,
+                        workflow_hint=continuation_workflow,
+                        topic_focus=topic,
+                        other_topics=others,
+                    ),
+                    timeout=config.LLM_TIMEOUT_S + 15,
+                )
+            except asyncio.TimeoutError:
+                last_error = ("forgespec_generation_failed", f"LLM call exceeded {config.LLM_TIMEOUT_S + 15:.0f}s", [])
+                log.warning("job=%s attempt %d/%d: LLM timeout, %s", job_id, attempt, max_attempts,
+                            "retrying" if will_retry else "giving up")
+                continue
+            except llm.LLMError as exc:
+                last_error = ("forgespec_generation_failed", str(exc), [])
+                log.warning("job=%s attempt %d/%d: LLM error (%s), %s", job_id, attempt, max_attempts, exc,
+                            "retrying" if will_retry else "giving up")
+                continue
+            except Exception as exc:
+                log.exception("job=%s unexpected LLM error", job_id)
+                last_error = ("forgespec_generation_failed", f"unexpected error: {exc}", [])
+                continue
 
-        if continuation_workflow and attempt_spec.get("workflow") != continuation_workflow:
-            last_error = (
-                "workflow_changed_on_continuation",
-                f"this recording was classified as '{attempt_spec.get('workflow')}' but the previous forge "
-                f"for this business was '{continuation_workflow}'. Record again and keep the same kind of "
-                f"business problem described, or start a new (non-'Record again') session if the business "
-                f"has genuinely changed.",
-                [],
-            )
-            log.warning("job=%s attempt %d/%d: workflow drifted, %s", job_id, attempt, max_attempts,
-                        "retrying" if will_retry else "giving up")
-            continue
+            if continuation_workflow and attempt_spec.get("workflow") != continuation_workflow:
+                last_error = (
+                    "workflow_changed_on_continuation",
+                    f"this recording was classified as '{attempt_spec.get('workflow')}' but the previous forge "
+                    f"for this business was '{continuation_workflow}'. Record again and keep the same kind of "
+                    f"business problem described, or start a new (non-'Record again') session if the business "
+                    f"has genuinely changed.",
+                    [],
+                )
+                log.warning("job=%s attempt %d/%d: workflow drifted, %s", job_id, attempt, max_attempts,
+                            "retrying" if will_retry else "giving up")
+                continue
 
-        if continuation_business_name:
-            _force_business_identity(attempt_spec, continuation_business_name)
+            if topic is not None and attempt_spec.get("workflow") != topic["workflow"]:
+                # The Router already decided this topic's workflow; a spec
+                # that drifts to another workflow is exactly the merging
+                # this stage exists to prevent.
+                last_error = (
+                    "forgespec_generation_failed",
+                    f"spec workflow '{attempt_spec.get('workflow')}' drifted from routed topic "
+                    f"'{topic['workflow']}'",
+                    [],
+                )
+                log.warning("job=%s attempt %d/%d: topic workflow drifted, %s", job_id, attempt, max_attempts,
+                            "retrying" if will_retry else "giving up")
+                continue
 
-        store.set_state(job_id, JobState.VALIDATING_FORGESPEC)
-        try:
-            attempt_validated = validate_generated_spec(attempt_spec)
-        except Exception as exc:
-            details = [d.model_dump() for d in getattr(exc, "details", [])]
-            last_error = ("validation_failed", "generated ForgeSpec failed validation", details)
-            log.warning("job=%s attempt %d/%d: validation failed (%s), %s", job_id, attempt, max_attempts,
-                        details, "retrying" if will_retry else "giving up")
-            continue
+            if continuation_business_name:
+                _force_business_identity(attempt_spec, continuation_business_name)
 
-        raw_spec, spec = attempt_spec, attempt_validated
-        break
+            store.set_state(job_id, JobState.VALIDATING_FORGESPEC)
+            try:
+                attempt_validated = validate_generated_spec(attempt_spec)
+            except Exception as exc:
+                details = [d.model_dump() for d in getattr(exc, "details", [])]
+                last_error = ("validation_failed", "generated ForgeSpec failed validation", details)
+                log.warning("job=%s attempt %d/%d: validation failed (%s), %s", job_id, attempt, max_attempts,
+                            details, "retrying" if will_retry else "giving up")
+                continue
 
-    if spec is None:
+            raw_spec, spec = attempt_spec, attempt_validated
+            break
+
+        if spec is not None:
+            validated.append((raw_spec, spec))
+        else:
+            log.warning("job=%s topic %s: no valid spec after %d attempts",
+                        job_id, (topic or {}).get("workflow", "single"), max_attempts)
+
+    if not validated:
         store.fail(job_id, last_error[0], last_error[1], last_error[2])
         return
 
     if continuation_business_name:
         log.info("job=%s record-again: business identity pinned to prior job's resolved name", job_id)
 
-    job.resolved_business_name = _resolve_business_name(raw_spec)
-    job.resolved_workflow = raw_spec.get("workflow")
-    log.info("job=%s forgespec generated workflow=%s", job_id, raw_spec.get("workflow"))
-
-    conflict_notes = raw_spec.get("notes") or []
-    if conflict_notes:
+    for raw_spec, _ in validated:
+        log.info("job=%s forgespec generated workflow=%s ui_mode=%s",
+                 job_id, raw_spec.get("workflow"), raw_spec.get("ui_mode") or "chat")
         # PRD requirement 10: log any source conflict detected. These are
         # conflict *descriptions* (e.g. "transcript said X, file said Y"),
         # not raw transcript/file content, so logging them in full is safe
         # and useful for ops — unlike the transcript/file text itself.
-        for note in conflict_notes:
+        for note in raw_spec.get("notes") or []:
             log.info("job=%s source conflict: %s", job_id, note)
 
-    # --- Provision ---
+    # --- Provision (one agent per validated spec) ---
     store.set_state(job_id, JobState.PROVISIONING)
     t0 = time.monotonic()
-    try:
-        resp = await asyncio.wait_for(
-            asyncio.to_thread(
-                requests.post,
-                f"{config.PROVISIONER_URL.rstrip('/')}/forge",
-                json=spec.model_dump(mode="json"),
-                timeout=config.PROVISION_TIMEOUT_S,
-            ),
-            timeout=config.PROVISION_TIMEOUT_S + 15,
-        )
-    except asyncio.TimeoutError:
-        store.fail(job_id, "provisioning_failed", f"Provisioner call exceeded {config.PROVISION_TIMEOUT_S + 15:.0f}s")
-        return
-    except requests.RequestException as exc:
-        store.fail(job_id, "provisioning_failed", f"could not reach Provisioner: {exc}")
+    for raw_spec, spec in validated:
+        try:
+            resp = await asyncio.wait_for(
+                asyncio.to_thread(
+                    requests.post,
+                    f"{config.PROVISIONER_URL.rstrip('/')}/forge",
+                    json=spec.model_dump(mode="json"),
+                    timeout=config.PROVISION_TIMEOUT_S,
+                ),
+                timeout=config.PROVISION_TIMEOUT_S + 15,
+            )
+        except asyncio.TimeoutError:
+            last_error = ("provisioning_failed", f"Provisioner call exceeded {config.PROVISION_TIMEOUT_S + 15:.0f}s", [])
+            log.warning("job=%s workflow=%s: %s", job_id, raw_spec.get("workflow"), last_error[1])
+            continue
+        except requests.RequestException as exc:
+            last_error = ("provisioning_failed", f"could not reach Provisioner: {exc}", [])
+            log.warning("job=%s workflow=%s: %s", job_id, raw_spec.get("workflow"), last_error[1])
+            continue
+
+        if resp.status_code != 200:
+            last_error = ("provisioning_failed", f"Provisioner returned HTTP {resp.status_code}: {resp.text[:300]}", [])
+            log.warning("job=%s workflow=%s: %s", job_id, raw_spec.get("workflow"), last_error[1])
+            continue
+
+        body = resp.json()
+        job.agents.append({
+            "workflow": raw_spec.get("workflow"),
+            "ui_mode": raw_spec.get("ui_mode") or "chat",
+            "business_name": _resolve_business_name(raw_spec),
+            "chat_url": body.get("chat_url"),
+            "sandbox_id": body.get("sandbox_id"),
+            "slug": body.get("slug"),
+            "elapsed_ms": body.get("elapsed_ms"),
+            "replaced_sandbox_id": body.get("replaced_sandbox_id"),
+        })
+
+    if not job.agents:
+        store.fail(job_id, last_error[0], last_error[1], last_error[2])
         return
 
-    if resp.status_code != 200:
-        store.fail(job_id, "provisioning_failed", f"Provisioner returned HTTP {resp.status_code}: {resp.text[:300]}")
-        return
-
-    body = resp.json()
-    job.chat_url = body.get("chat_url")
-    job.sandbox_id = body.get("sandbox_id")
-    job.slug = body.get("slug")
-    job.elapsed_ms = body.get("elapsed_ms")
-    job.replaced_sandbox_id = body.get("replaced_sandbox_id")
+    # Legacy single-agent fields mirror the first forged agent so existing
+    # clients (and "Record again") keep working unchanged.
+    first = job.agents[0]
+    job.resolved_business_name = first["business_name"]
+    job.resolved_workflow = first["workflow"]
+    job.chat_url = first["chat_url"]
+    job.sandbox_id = first["sandbox_id"]
+    job.slug = first["slug"]
+    job.elapsed_ms = first["elapsed_ms"]
+    job.replaced_sandbox_id = first["replaced_sandbox_id"]
 
     store.set_state(job_id, JobState.READY)
     log.info(
-        "job=%s READY slug=%s sandbox_id=%s total_pipeline_s=%.1f",
-        job_id, job.slug, job.sandbox_id, time.monotonic() - t0,
+        "job=%s READY agents=%d slugs=%s total_pipeline_s=%.1f",
+        job_id, len(job.agents), [a["slug"] for a in job.agents], time.monotonic() - t0,
     )

@@ -16,6 +16,7 @@ class JobState(str, Enum):
     UPLOADING = "uploading"
     TRANSCRIBING = "transcribing"
     READING_FILES = "reading_files"
+    MAPPING_TOPICS = "mapping_topics"
     EXTRACTING_FORGESPEC = "extracting_forgespec"
     VALIDATING_FORGESPEC = "validating_forgespec"
     PROVISIONING = "provisioning"
@@ -46,6 +47,11 @@ class Job:
     slug: Optional[str] = None
     elapsed_ms: Optional[int] = None
     replaced_sandbox_id: Optional[str] = None
+    # Multi-topic results: what the Router detected, and one entry per agent
+    # actually forged (one per distinct workflow). The legacy single fields
+    # above mirror the FIRST forged agent so old clients keep working.
+    topics: Optional[list] = None
+    agents: list = field(default_factory=list)
 
     def to_public_dict(self) -> dict:
         return {
@@ -62,6 +68,8 @@ class Job:
             "slug": self.slug,
             "elapsed_ms": self.elapsed_ms,
             "replaced_sandbox_id": self.replaced_sandbox_id,
+            "topics": self.topics,
+            "agents": self.agents,
         }
 
 

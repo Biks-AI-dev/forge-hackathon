@@ -9,6 +9,7 @@ export type JobState =
   | "uploading"
   | "transcribing"
   | "reading_files"
+  | "mapping_topics"
   | "extracting_forgespec"
   | "validating_forgespec"
   | "provisioning"
@@ -26,6 +27,25 @@ export interface JobError {
   details: FieldError[];
 }
 
+export interface Topic {
+  workflow: string;
+  title: string;
+  summary: string;
+  evidence: string[];
+  wants_app_ui: boolean;
+}
+
+export interface ForgedAgent {
+  workflow: string | null;
+  ui_mode: "chat" | "app";
+  business_name: string | null;
+  chat_url: string | null;
+  sandbox_id: string | null;
+  slug: string | null;
+  elapsed_ms: number | null;
+  replaced_sandbox_id: string | null;
+}
+
 export interface Job {
   job_id: string;
   state: JobState;
@@ -40,6 +60,10 @@ export interface Job {
   slug: string | null;
   elapsed_ms: number | null;
   replaced_sandbox_id: string | null;
+  // Multi-topic results: what the Router detected + one entry per forged
+  // agent. The single fields above mirror agents[0] for backwards compat.
+  topics: Topic[] | null;
+  agents: ForgedAgent[];
 }
 
 export interface ApiError {

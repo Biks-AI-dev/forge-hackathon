@@ -74,6 +74,11 @@ class ForgeSpec(BaseModel):
 
     workflow: Optional[Literal["recon", "sales"]] = None
 
+    # How the forged agent presents itself: a chat assistant (default) or an
+    # app-shell UI (dashboard + embedded assistant). Set by the Architect
+    # only when the client explicitly asked for an app/dashboard.
+    ui_mode: Optional[Literal["chat", "app"]] = None
+
     # Legacy/generic top-level fields (PRD §4.1's original validation rule,
     # pre-dating the workflow discriminator). Still honored if present.
     business_name: Optional[str] = None

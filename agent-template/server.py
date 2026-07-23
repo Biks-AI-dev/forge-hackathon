@@ -56,6 +56,10 @@ CHANNELS = SPEC.get("channels") or []
 CATEGORIES = _get(SPEC, "products", "categories", default=[]) or []
 POLICY = SPEC.get("policy") or {}
 WORKFLOW = SPEC.get("workflow") or ("recon" if CHANNELS else "sales")
+# "chat" (default): the WhatsApp/Teams-style conversation page. "app": an
+# app-shell UI — live dashboard + embedded assistant — for clients who asked
+# for a dashboard/app instead of a chatbot. Same brain either way.
+UI_MODE = (SPEC.get("ui_mode") or "chat").lower()
 # Did this client ask for Excel? Then every recorded closing is written to a
 # sheet immediately — they should never have to ask for it.
 # Set in code by the Architect (llm.js validateForgeSpec) from what the client
@@ -830,6 +834,206 @@ PAGE = (PAGE.replace("__AGENT__", AGENT).replace("__BIZ__", BUSINESS)
             .replace("__TYPING__", T("ui_typing")).replace("__OFFLINE__", T("ui_offline"))
             .replace("__READPHOTO__", T("ui_reading_photo")).replace("__READDOC__", T("ui_reading_doc")))
 
+# ------------------------------------------------------------- app-shell page
+# ui_mode == "app": the deliverable is an app, not a chatbot. Left rail +
+# live dashboard cards (all numbers come from GET /state — code-owned session
+# state, never model output) with the assistant docked on the right. The
+# assistant reuses the exact same POST /chat as the chat page; after every
+# reply the dashboard re-fetches /state so recorded closings / verdicts /
+# totals appear in the cards the moment the brain records them.
+PAGE_APP = """<!DOCTYPE html><html lang="__LANG__"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__AGENT__ · __BIZ__</title><style>
+*{box-sizing:border-box;margin:0}html,body{height:100dvh}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#111418;color:#E6E9ED;display:flex;flex-direction:column;overflow:hidden}
+#top{display:flex;align-items:center;gap:12px;padding:10px 18px;background:#171B21;border-bottom:1px solid #232932}
+#top .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#0F766E,#14B8A6);display:grid;place-items:center;font-size:16px}
+#top b{font-size:15px}#top small{color:#8B95A3;font-size:11.5px;display:block}
+#top .pill{margin-left:auto;font-size:11px;color:#5EEAD4;background:rgba(20,184,166,.12);border:1px solid rgba(20,184,166,.35);padding:4px 10px;border-radius:12px}
+#wrap{flex:1;display:flex;min-height:0}
+#rail{width:190px;background:#171B21;border-right:1px solid #232932;padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+#rail a{color:#B7C0CC;text-decoration:none;font-size:13px;padding:9px 12px;border-radius:8px;display:flex;gap:9px;align-items:center}
+#rail a.on{background:#232932;color:#fff}
+#rail a:hover{background:#1D222A}
+#rail .sec{font-size:10.5px;color:#5B6675;text-transform:uppercase;letter-spacing:.6px;padding:14px 12px 4px}
+#dash{flex:1;overflow-y:auto;padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;align-content:start}
+.card{background:#171B21;border:1px solid #232932;border-radius:12px;padding:16px}
+.card h3{font-size:12px;color:#8B95A3;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.card .big{font-size:22px;font-weight:600}
+.card .muted{color:#5B6675;font-size:13px}
+.card table{width:100%;border-collapse:collapse;font-size:13px}
+.card td{padding:6px 2px;border-bottom:1px solid #1E242C}
+.card td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.tag{font-size:10px;color:#FBBF24;border:1px solid rgba(251,191,36,.4);border-radius:8px;padding:1px 6px;margin-left:6px}
+.v-line{font-size:13px;padding:5px 0;border-bottom:1px solid #1E242C;white-space:pre-wrap}
+.card a{color:#5EEAD4}
+#side{width:340px;display:flex;flex-direction:column;background:#141920;border-left:1px solid #232932;min-width:0}
+#side header{padding:12px 14px;border-bottom:1px solid #232932;font-size:13px;display:flex;gap:8px;align-items:center}
+#side header .dot{width:8px;height:8px;border-radius:50%;background:#34D399}
+#log{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.b{max-width:92%;padding:7px 11px;border-radius:9px;font-size:13px;line-height:1.45;white-space:pre-wrap}
+.me{background:#0F766E;color:#fff;align-self:flex-end}
+.bot{background:#232932;align-self:flex-start}
+.b img{max-width:100%;border-radius:8px;display:block;margin-bottom:4px}
+.typing{color:#5B6675;font-size:12px;align-self:flex-start;padding:0 4px}
+form{display:flex;gap:6px;padding:10px;border-top:1px solid #232932}
+#m{flex:1;background:#1D222A;border:1px solid #2A313B;border-radius:8px;color:#E6E9ED;padding:9px 12px;font-size:13px;outline:none;resize:none;font-family:inherit;max-height:110px}
+button{border:none;background:#0F766E;color:#fff;border-radius:8px;padding:0 14px;font-size:15px;cursor:pointer}
+#att{background:#1D222A;border:1px solid #2A313B;color:#8B95A3}
+#fi{display:none}
+@media(max-width:900px){#rail{display:none}}
+@media(max-width:700px){#side{width:100%;position:fixed;inset:0;display:none}}
+</style></head><body>
+<header id="top"><span class="logo">◆</span><div><b>__BIZ__</b><small>__AGENT__ · AI operations app</small></div><span class="pill">● live</span></header>
+<div id="wrap">
+  <nav id="rail">
+    <span class="sec">Workspace</span>
+    <a class="on" href="#">▦ Dashboard</a>
+    <a href="#" onclick="document.getElementById('m').focus();return false">✦ Assistant</a>
+    <a href="#" id="nav-export" style="display:none">⬇ Excel export</a>
+  </nav>
+  <main id="dash"></main>
+  <aside id="side">
+    <header><span class="dot"></span><b>__AGENT__</b>&nbsp;<span style="color:#5B6675">assistant</span></header>
+    <div id="log"></div>
+    <form id="f"><button type="button" id="att" title="__ATTACH__">📎</button><input type="file" id="fi" accept="image/*,.pdf,.txt,.csv"><textarea id="m" rows="1" placeholder="__PLACEHOLDER__" autocomplete="off" autofocus></textarea><button>➤</button></form>
+  </aside>
+</div>
+<script>
+const sid = sessionStorage.sid ||= (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()));
+const log = document.getElementById('log');
+const dash = document.getElementById('dash');
+function add(cls, text){
+  const d=document.createElement('div');d.className='b '+cls;
+  const re=/((?:https?:[/][/]|[/]export[.]xlsx)[^ ]+)/g; let last=0,m;
+  while((m=re.exec(text))){
+    d.appendChild(document.createTextNode(text.slice(last,m.index)));
+    const a=document.createElement('a');a.href=m[1];a.target='_blank';
+    a.textContent=m[1].indexOf('export.xlsx')>-1?'📊 Excel':m[1];
+    a.style.cssText='color:#5EEAD4;font-weight:600';
+    d.appendChild(a); last=m.index+m[1].length;
+  }
+  d.appendChild(document.createTextNode(text.slice(last)));
+  log.appendChild(d);log.scrollTop=1e9;return d}
+// ---- dashboard: rendered ONLY from /state (code-owned numbers) ----
+function card(title){const c=document.createElement('div');c.className='card';
+  const h=document.createElement('h3');h.textContent=title;c.appendChild(h);dash.appendChild(c);return c}
+function renderState(st){
+  dash.textContent='';
+  if(st.workflow==='recon'){
+    const c1=card('Today\\u2019s closing');
+    if(st.closing){
+      const t=document.createElement('table');
+      for(const [k,v] of Object.entries(st.closing)){
+        const tr=t.insertRow();tr.insertCell().textContent=k;tr.insertCell().textContent=v.toLocaleString('id-ID');}
+      const tr=t.insertRow();tr.insertCell().innerHTML='<b>Total</b>';
+      tr.insertCell().innerHTML='<b>'+st.closing_total.toLocaleString('id-ID')+'</b>';
+      c1.appendChild(t);
+    } else {const p=document.createElement('div');p.className='muted';p.textContent=st.empty_closing;c1.appendChild(p);}
+    const c2=card('Reconciliation');
+    if(st.verdicts&&st.verdicts.length){
+      for(const v of st.verdicts){const d=document.createElement('div');d.className='v-line';d.textContent=v;c2.appendChild(d);}
+    } else {const p=document.createElement('div');p.className='muted';p.textContent=st.empty_verdicts;c2.appendChild(p);}
+    const c3=card('Channels');
+    const t3=document.createElement('table');
+    for(const ch of st.channels||[]){
+      const tr=t3.insertRow();const td=tr.insertCell();td.textContent=ch.name;
+      if(ch.assumed){const s=document.createElement('span');s.className='tag';s.textContent='assumed';td.appendChild(s);}
+      tr.insertCell().textContent=ch.fee_rate!=null?(ch.fee_rate*100).toFixed(1)+'%':'—';}
+    c3.appendChild(t3);
+  } else {
+    const c1=card('Catalog');
+    const t=document.createElement('table');
+    for(const it of st.catalog||[]){
+      const tr=t.insertRow();tr.insertCell().textContent=it.name;
+      tr.insertCell().textContent=it.price.toLocaleString('id-ID');}
+    if(!(st.catalog||[]).length){const p=document.createElement('div');p.className='muted';p.textContent='—';c1.appendChild(p);}
+    c1.appendChild(t);
+  }
+  const cg=card('Guardrails (enforced in code)');
+  for(const g of st.guardrails||[]){const d=document.createElement('div');d.className='v-line';d.textContent='🛡 '+g;cg.appendChild(d);}
+  if(!(st.guardrails||[]).length){const p=document.createElement('div');p.className='muted';p.textContent='—';cg.appendChild(p);}
+  const ex=document.getElementById('nav-export');
+  if(st.excel){ex.style.display='flex';ex.href=st.excel;}else{ex.style.display='none';}
+}
+async function refreshState(){
+  try{const r=await fetch('/state?sid='+encodeURIComponent(sid));renderState(await r.json());}catch(e){}
+}
+let pendingImg=null,pendingFile=null;
+async function send(text, image, file){
+  if(text||image){const d=add('me', text||'');
+    if(image){const im=document.createElement('img');im.src=image;d.prepend(im);}}
+  const t=document.createElement('div');t.className='typing';
+  const label=image?'__READPHOTO__':file?'__READDOC__':'__TYPING__';
+  t.textContent=label;log.appendChild(t);log.scrollTop=1e9;
+  const t0=Date.now();
+  const tick=setInterval(()=>{t.textContent=label+' '+((Date.now()-t0)/1000).toFixed(0)+'s';},1000);
+  try{
+    const r=await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sid,message:text,image,file})});
+    const j=await r.json();clearInterval(tick);t.remove();add('bot', j.reply||'(…)');
+    refreshState();
+  }catch(e){clearInterval(tick);t.remove();add('bot','__OFFLINE__');}
+}
+document.getElementById('f').onsubmit=e=>{e.preventDefault();const m=document.getElementById('m');const v=m.value.trim();if(!v&&!pendingImg&&!pendingFile)return;m.value='';const img=pendingImg,fl=pendingFile;pendingImg=pendingFile=null;document.getElementById('att').textContent='📎';send(v,img,fl)};
+// Multi-line paste matters here (a closing is one channel per line):
+// Enter sends, Shift+Enter makes a newline.
+document.getElementById('m').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();document.getElementById('f').requestSubmit();}
+});
+document.getElementById('att').onclick=()=>document.getElementById('fi').click();
+document.getElementById('fi').onchange=()=>{
+  const f=document.getElementById('fi').files[0];if(!f)return;
+  if(f.type.startsWith('image/')){
+    const img=new Image();img.onload=()=>{
+      const k=Math.min(1,1600/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');c.width=img.width*k;c.height=img.height*k;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      pendingImg=c.toDataURL('image/jpeg',0.85);document.getElementById('att').textContent='🖼️';
+      URL.revokeObjectURL(img.src);
+    };img.src=URL.createObjectURL(f);
+  }
+  else{const rd=new FileReader();rd.onload=()=>{pendingFile=rd.result;document.getElementById('att').textContent='📄'};rd.readAsDataURL(f);}
+  document.getElementById('fi').value='';
+};
+refreshState();
+</script></body></html>"""
+PAGE_APP = (PAGE_APP.replace("__AGENT__", AGENT).replace("__BIZ__", BUSINESS)
+            .replace("__LANG__", "en" if LANG == "en" else "id")
+            .replace("__ATTACH__", T("ui_attach")).replace("__PLACEHOLDER__", T("ui_placeholder"))
+            .replace("__TYPING__", T("ui_typing")).replace("__OFFLINE__", T("ui_offline"))
+            .replace("__READPHOTO__", T("ui_reading_photo")).replace("__READDOC__", T("ui_reading_doc")))
+
+
+def app_state(sid):
+    """Dashboard data for the app UI — every number is code-owned session
+    state or spec data; nothing here ever comes from model output."""
+    s = SESSIONS.get(sid) or {}
+    state = {
+        "workflow": WORKFLOW,
+        "agent": AGENT,
+        "business": BUSINESS,
+        "guardrails": (POLICY.get("guardrails") or [])[:8],
+        "empty_closing": "Belum ada closing tercatat" if LANG != "en" else "No closing recorded yet",
+        "empty_verdicts": "Kirim closing + mutasi untuk rekonsiliasi" if LANG != "en"
+                          else "Send a closing + statement to reconcile",
+        "excel": None,
+    }
+    if WORKFLOW == "recon":
+        state["channels"] = [
+            {"name": (c.get("name") or "?").title(), "fee_rate": c.get("fee_rate"),
+             "assumed": bool(c.get("assumed"))}
+            for c in CHANNELS if isinstance(c, dict)
+        ]
+        closing = s.get("closing")
+        state["closing"] = closing
+        state["closing_total"] = sum(closing.values()) if closing else 0
+        state["verdicts"] = s.get("verdicts") or []
+        if closing:
+            state["excel"] = f"/export.xlsx?sid={sid}"
+    else:
+        state["catalog"] = [{"name": c["name"], "price": c["price"]} for c in CATALOG]
+    return state
+
 # ---------------------------------------------------------------- PDF text
 
 def _decode_stream(raw):
@@ -1003,8 +1207,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/health":
             return self._json(200, {"status": "ok"})
+        if self.path.startswith("/state"):
+            sid = self.path.partition("sid=")[2] or "web"
+            return self._json(200, app_state(sid))
         if self.path == "/":
-            body = PAGE.encode("utf-8", "replace")
+            body = (PAGE_APP if UI_MODE == "app" else PAGE).encode("utf-8", "replace")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
