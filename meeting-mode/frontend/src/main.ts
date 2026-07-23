@@ -63,6 +63,7 @@ const STEP_ORDER: JobState[] = [
   "uploading",
   "transcribing",
   "reading_files",
+  "mapping_topics",
   "extracting_forgespec",
   "validating_forgespec",
   "provisioning",
@@ -75,6 +76,7 @@ const STATE_LABELS: Record<JobState, string> = {
   uploading: "uploading…",
   transcribing: "transcribing…",
   reading_files: "reading files…",
+  mapping_topics: "mapping topics…",
   extracting_forgespec: "generating ForgeSpec…",
   validating_forgespec: "validating…",
   provisioning: "provisioning sandbox…",
@@ -317,15 +319,42 @@ function renderSteps(state: JobState): string {
     .join("");
 }
 
+function renderAgentRow(a: Job["agents"][number]): string {
+  const uiBadge = a.ui_mode === "app" ? "app UI" : "chat";
+  return `
+    <div class="agent-row" style="padding:8px 0;border-top:1px solid rgba(127,127,127,.2)">
+      <p style="margin:0 0 2px">
+        <strong>${escapeHtml(a.workflow ?? "agent")}</strong>
+        <span class="research-preview-badge ok" style="margin-left:6px">${uiBadge}</span>
+        ${a.elapsed_ms != null ? `<span class="hint" style="margin-left:6px">${a.elapsed_ms} ms</span>` : ""}
+      </p>
+      <p style="margin:0"><a href="${escapeHtml(a.chat_url ?? "#")}" target="_blank" rel="noopener">${escapeHtml(a.chat_url ?? "")}</a></p>
+      ${a.replaced_sandbox_id ? `<p class="hint" style="margin:2px 0 0">Replaced previous sandbox ${escapeHtml(a.replaced_sandbox_id)}</p>` : ""}
+    </div>`;
+}
+
 function renderResult(job: Job): void {
   resultCard.style.display = "block";
   if (job.state === "ready") {
+    // One card per forged agent (one per detected workflow); topics show
+    // what the Router separated so a multi-topic meeting visibly does NOT
+    // collapse into one spec.
+    const agents = job.agents?.length
+      ? job.agents
+      : [{ workflow: job.resolved_workflow, ui_mode: "chat" as const, business_name: job.resolved_business_name,
+           chat_url: job.chat_url, sandbox_id: job.sandbox_id, slug: job.slug,
+           elapsed_ms: job.elapsed_ms, replaced_sandbox_id: job.replaced_sandbox_id }];
+    const topicsHtml = job.topics?.length
+      ? `<p class="hint" style="margin:6px 0 0">Detected topic(s): ${job.topics
+          .map((t) => `<strong>${escapeHtml(t.workflow)}</strong> — ${escapeHtml(t.title)}${t.wants_app_ui ? " (asked for an app UI)" : ""}`)
+          .join(" · ")}</p>`
+      : "";
     resultCard.innerHTML = `
       <div class="success-box">
-        <h3 style="margin-top:0">Agent is live</h3>
-        <p><strong>${job.resolved_business_name ?? ""}</strong> — provisioned in ${job.elapsed_ms} ms</p>
-        <p><a href="${job.chat_url}" target="_blank" rel="noopener">${job.chat_url}</a></p>
-        ${job.replaced_sandbox_id ? `<p class="hint">Replaced previous sandbox ${job.replaced_sandbox_id}</p>` : ""}
+        <h3 style="margin-top:0">${agents.length > 1 ? `${agents.length} agents are live` : "Agent is live"}</h3>
+        <p style="margin-bottom:2px"><strong>${escapeHtml(job.resolved_business_name ?? "")}</strong></p>
+        ${topicsHtml}
+        ${agents.map(renderAgentRow).join("")}
       </div>
       <div class="row" style="margin-top:14px">
         <button class="btn btn-secondary" id="btn-record-again">Record again</button>
